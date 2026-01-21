@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Register</title>
+</head>
+<body>
+  <h1>Register</h1>
+  <form id="registerForm">
+    <label>Email: <input type="email" id="email"></label><br>
+    <label>Password: <input type="password" id="password"></label><br>
+    <button type="submit">Register</button>
+  </form>
+  <p>Already have an account? <a href="login.html">Login</a></p>
+
+  <script>
+    document.getElementById("registerForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+    
+      try {
+        const res = await fetch("/register",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({email,password})
+        });
+    
+        // Parse JSON response
+        const data = await res.json();
+    
+        // Show either success or error messages
+        if(res.ok && data.message){
+          alert(data.message); // Success
+          window.location.href = "login.html";
+        } else if(data.errors){
+          alert("Errors:\n" + data.errors.join("\n"));
+        } else {
+          alert("Unknown error occurred");
+        }
+    
+      } catch(err){
+        alert("Fetch error: " + err);
+      }
+    });
+    </script>
+    
+    
+    
+</body>
+</html>
