@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Inventory</title>
+  <style>
+    table { border-collapse: collapse; width: 80%; margin-bottom: 20px; }
+    th, td { border: 1px solid black; padding: 5px; text-align: left; }
+    th { background-color: #ddd; }
+    h2 { margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <h1>Inventory Page</h1>
+  
+  <div id="roomsSection">
+    <h2>Rooms</h2>
+    <table id="roomsTable">
+      <thead><tr><th>ID</th><th>Name</th><th>Capacity</th><th>Location</th><th>Action</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <h3>Add Room</h3>
+    <label>Name: <input type="text" id="roomName"></label>
+    <label>Capacity: <input type="number" id="roomCapacity"></label>
+    <label>Location: <input type="text" id="roomLocation"></label>
+    <button id="addRoomBtn">Add Room</button>
+  </div>
+
+  <div id="resourcesSection">
+    <h2>Resources</h2>
+    <table id="resourcesTable">
+      <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Condition</th><th>Action</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <h3>Add Resource</h3>
+    <label>Name: <input type="text" id="resourceName"></label>
+    <label>Type: <input type="text" id="resourceType"></label>
+    <label>Condition: <input type="text" id="resourceCondition"></label>
+    <button id="addResourceBtn">Add Resource</button>
+  </div>
+
+  <div id="peopleSection">
+    <h2>People</h2>
+    <table id="peopleTable">
+      <thead><tr><th>ID</th><th>Name</th><th>Role</th><th>Availability</th><th>Action</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <h3>Add Person</h3>
+    <label>Name: <input type="text" id="personName"></label>
+    <label>Role: <input type="text" id="personRole"></label>
+    <label>Availability: <input type="text" id="personAvailability"></label>
+    <button id="addPersonBtn">Add Person</button>
+  </div>
+
+  <script src="inventory.js"></script>
+</body>
+</html>
