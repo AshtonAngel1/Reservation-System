@@ -1,4 +1,5 @@
 // Import libraries
+const db = require('./db');
 const express = require("express");
 const bcrypt = require("bcrypt");
 const { body, validationResult } = require("express-validator");
@@ -85,9 +86,21 @@ app.post("/login", async (req, res) => {
 });
 
 // Inventory
-app.get("/inventory", (req,res)=>{
-  res.json({rooms, resources, people});
+app.get("/inventory", async (req, res) => {
+  try {
+    // Fetch each table
+    const [rooms] = await db.promise().query("SELECT * FROM rooms");
+    const [resources] = await db.promise().query("SELECT * FROM resources");
+    const [people] = await db.promise().query("SELECT * FROM people");
+
+    // Send as JSON
+    res.json({ rooms, resources, people });
+  } catch (err) {
+    console.error("Error fetching inventory:", err);
+    res.status(500).json({ error: "Database error" });
+  }
 });
+
 
 // Rooms
 app.post("/rooms",(req,res)=>{
