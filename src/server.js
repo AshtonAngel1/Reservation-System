@@ -91,9 +91,31 @@ app.get("/inventory", (req,res)=>{
 });
 
 // Rooms
-app.post("/rooms",(req,res)=>{
-  rooms.push(req.body);
-  res.json({message:"Room added"});
+app.post("/rooms", (req, res) => {
+  let { name, capacity, location } = req.body;
+
+  // Trim strings
+  name = name?.trim();
+  location = location?.trim();
+
+  // Validation
+  if (!name || !location) {
+    return res.status(400).json({ error: "Name and location are required" });
+  }
+
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    return res.status(400).json({ error: "Capacity must be a positive integer" });
+  }
+
+  const newRoom = {
+    id: rooms.length ? rooms[rooms.length - 1].id + 1 : 1,
+    name,
+    capacity,
+    location
+  };
+
+  rooms.push(newRoom);
+  res.status(201).json(newRoom);
 });
 app.delete("/rooms/:id",(req,res)=>{
   rooms = rooms.filter(r=>r.id != req.params.id);
@@ -101,20 +123,56 @@ app.delete("/rooms/:id",(req,res)=>{
 });
 
 // Resources
-app.post("/resources",(req,res)=>{
-  resources.push(req.body);
-  res.json({message:"Resource added"});
+app.post("/resources", (req, res) => {
+  let { name, type, condition } = req.body;
+
+  name = name?.trim();
+  type = type?.trim();
+  condition = condition?.trim();
+
+  if (!name || !type || !condition) {
+    return res.status(400).json({ error: "All resource fields are required" });
+  }
+
+  const newResource = {
+    id: resources.length ? resources[resources.length - 1].id + 1 : 1,
+    name,
+    type,
+    condition
+  };
+
+  resources.push(newResource);
+  res.status(201).json(newResource);
 });
+
 app.delete("/resources/:id",(req,res)=>{
   resources = resources.filter(r=>r.id != req.params.id);
   res.json({message:"Resource deleted"});
 });
 
 // People
-app.post("/people",(req,res)=>{
-  people.push(req.body);
-  res.json({message:"Person added"});
+app.post("/people", (req, res) => {
+  let { name, role, availability_notes } = req.body;
+
+  name = name?.trim();
+  role = role?.trim();
+  availability_notes = availability_notes?.trim();
+
+  if (!name || !role || !availability_notes) {
+    return res.status(400).json({ error: "All people fields are required" });
+  }
+
+  const newPerson = {
+    id: people.length ? people[people.length - 1].id + 1 : 1,
+    name,
+    role,
+    availability_notes
+  };
+
+  people.push(newPerson);
+  res.status(201).json(newPerson);
 });
+
 app.delete("/people/:id",(req,res)=>{
   people = people.filter(p=>p.id != req.params.id);
   res.json({message:"Person deleted"});
