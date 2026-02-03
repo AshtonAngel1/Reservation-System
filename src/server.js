@@ -86,9 +86,15 @@ app.post("/login", async (req, res) => {
 });
 
 // Inventory
-app.get("/inventory", (req,res)=>{
-  res.json({rooms, resources, people});
+app.get("/inventory", (req, res) => {
+  res.json({
+    rooms,
+    resources,
+    people
+  });
 });
+
+
 
 // Rooms
 app.post("/rooms", (req, res) => {
@@ -124,26 +130,31 @@ app.delete("/rooms/:id",(req,res)=>{
 
 // Resources
 app.post("/resources", (req, res) => {
-  let { name, type, condition } = req.body;
+  let { name, type, condition, quantity } = req.body;
 
   name = name?.trim();
   type = type?.trim();
   condition = condition?.trim();
+  quantity = Number(quantity);
 
   if (!name || !type || !condition) {
-    return res.status(400).json({ error: "All resource fields are required" });
+    return res.status(400).json({ error: "All fields required" });
   }
 
-  const newResource = {
-    id: resources.length ? resources[resources.length - 1].id + 1 : 1,
-    name,
-    type,
-    condition
-  };
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return res.status(400).json({ error: "Quantity must be positive" });
+  }
 
-  resources.push(newResource);
-  res.status(201).json(newResource);
+  db.query(
+    "INSERT INTO resources (name, type, status, quantity) VALUES (?, ?, ?, ?)",
+    [name, type, condition, quantity],
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.status(201).json({ id: result.insertId });
+    }
+  );
 });
+
 
 app.delete("/resources/:id",(req,res)=>{
   resources = resources.filter(r=>r.id != req.params.id);
