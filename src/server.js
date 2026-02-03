@@ -45,6 +45,7 @@ app.post("/register",
     .matches(/\.(com|org|edu|gov)$/i).withMessage("Email must end with .com/.org/.edu/.gov"),
   body("password")
     .isLength({ min: 8 }).withMessage("Password must be at least 8 characters")
+    .matches(/[a-zA-Z]/).withMessage("Password must include a letter")
     .matches(/[0-9]/).withMessage("Password must include a number")
     .matches(/[@$!%*?&]/).withMessage("Password must include a special character (@$!%*?&)"),
   async (req, res) => {
