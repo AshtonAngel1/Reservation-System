@@ -1,4 +1,5 @@
 // Import libraries
+const db = require('./db');
 const express = require("express");
 const bcrypt = require("bcrypt");
 const { body, validationResult } = require("express-validator");
@@ -93,6 +94,7 @@ app.get("/inventory", (req, res) => {
     people
   });
 });
+
 
 
 
