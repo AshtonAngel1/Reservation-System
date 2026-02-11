@@ -11,6 +11,29 @@ function createDeleteButton(type, id) {
   btn.addEventListener("click", async () => {
     await fetch(`/${type}/${id}`, { method: "DELETE" });
     loadTables();
+  };
+  return btn;
+}
+
+// --- LOAD TABLES ---
+async function loadTables() {
+  const { rooms, resources, people } = await fetchInventory();
+
+  // Rooms
+  const roomsTbody = document.querySelector("#roomsTable tbody");
+  roomsTbody.innerHTML = "";
+  rooms.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.id}</td>
+      <td>${r.name}</td>
+      <td>${r.capacity}</td>
+      <td>${r.location}</td>
+    `;
+    const actionTd = document.createElement("td");
+    actionTd.appendChild(createDeleteButton("rooms", r.id));
+    tr.appendChild(actionTd);
+    roomsTbody.appendChild(tr);
   });
   return btn;
 }

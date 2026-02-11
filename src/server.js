@@ -46,6 +46,7 @@ app.post("/register",
     .matches(/\.(com|org|edu|gov)$/i).withMessage("Email must end with .com/.org/.edu/.gov"),
   body("password")
     .isLength({ min: 8 }).withMessage("Password must be at least 8 characters")
+    .matches(/[a-zA-Z]/).withMessage("Password must include a letter")
     .matches(/[0-9]/).withMessage("Password must include a number")
     .matches(/[@$!%*?&]/).withMessage("Password must include a special character (@$!%*?&)"),
   async (req, res) => {
@@ -86,26 +87,43 @@ app.post("/login", async (req, res) => {
 });
 
 // Inventory
-app.get("/inventory", async (req, res) => {
-  try {
-    // Fetch each table
-    const [rooms] = await db.promise().query("SELECT * FROM rooms");
-    const [resources] = await db.promise().query("SELECT * FROM resources");
-    const [people] = await db.promise().query("SELECT * FROM people");
-
-    // Send as JSON
-    res.json({ rooms, resources, people });
-  } catch (err) {
-    console.error("Error fetching inventory:", err);
-    res.status(500).json({ error: "Database error" });
-  }
+app.get("/inventory", (req, res) => {
+  res.json({
+    rooms,
+    resources,
+    people
+  });
 });
 
 
+
+
 // Rooms
-app.post("/rooms",(req,res)=>{
-  rooms.push(req.body);
-  res.json({message:"Room added"});
+app.post("/rooms", (req, res) => {
+  let { name, capacity, location } = req.body;
+
+  // Trim strings
+  name = name?.trim();
+  location = location?.trim();
+
+  // Validation
+  if (!name || !location) {
+    return res.status(400).json({ error: "Name and location are required" });
+  }
+
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    return res.status(400).json({ error: "Capacity must be a positive integer" });
+  }
+
+  const newRoom = {
+    id: rooms.length ? rooms[rooms.length - 1].id + 1 : 1,
+    name,
+    capacity,
+    location
+  };
+
+  rooms.push(newRoom);
+  res.status(201).json(newRoom);
 });
 app.delete("/rooms/:id",(req,res)=>{
   rooms = rooms.filter(r=>r.id != req.params.id);
@@ -113,20 +131,61 @@ app.delete("/rooms/:id",(req,res)=>{
 });
 
 // Resources
-app.post("/resources",(req,res)=>{
-  resources.push(req.body);
-  res.json({message:"Resource added"});
+app.post("/resources", (req, res) => {
+  let { name, type, condition, quantity } = req.body;
+
+  name = name?.trim();
+  type = type?.trim();
+  condition = condition?.trim();
+  quantity = Number(quantity);
+
+  if (!name || !type || !condition) {
+    return res.status(400).json({ error: "All fields required" });
+  }
+
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return res.status(400).json({ error: "Quantity must be positive" });
+  }
+
+  db.query(
+    "INSERT INTO resources (name, type, status, quantity) VALUES (?, ?, ?, ?)",
+    [name, type, condition, quantity],
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.status(201).json({ id: result.insertId });
+    }
+  );
 });
+
+
 app.delete("/resources/:id",(req,res)=>{
   resources = resources.filter(r=>r.id != req.params.id);
   res.json({message:"Resource deleted"});
 });
 
 // People
-app.post("/people",(req,res)=>{
-  people.push(req.body);
-  res.json({message:"Person added"});
+app.post("/people", (req, res) => {
+  let { name, role, availability_notes } = req.body;
+
+  name = name?.trim();
+  role = role?.trim();
+  availability_notes = availability_notes?.trim();
+
+  if (!name || !role || !availability_notes) {
+    return res.status(400).json({ error: "All people fields are required" });
+  }
+
+  const newPerson = {
+    id: people.length ? people[people.length - 1].id + 1 : 1,
+    name,
+    role,
+    availability_notes
+  };
+
+  people.push(newPerson);
+  res.status(201).json(newPerson);
 });
+
 app.delete("/people/:id",(req,res)=>{
   people = people.filter(p=>p.id != req.params.id);
   res.json({message:"Person deleted"});
