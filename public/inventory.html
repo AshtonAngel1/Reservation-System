@@ -6,10 +6,14 @@
 </head>
 <body>
 
-  <h1>Inventory Page</h1>
+<div class="page">
 
-  <div class="section">
+  <h1>Inventory Management</h1>
+
+  <!-- ROOMS -->
+  <div id="roomsSection" class="card">
     <h2>Rooms</h2>
+
     <table id="roomsTable">
       <thead>
         <tr>
@@ -23,17 +27,30 @@
       <tbody></tbody>
     </table>
 
+    <h3>Add Room</h3>
+
     <div class="form-row">
-      <h3>Add Room</h3>
-      <label>Name <input type="text" id="roomName"></label>
-      <label>Capacity <input type="number" id="roomCapacity"></label>
-      <label>Location <input type="text" id="roomLocation"></label>
-      <button id="addRoomBtn">Add Room</button>
+      <label>Name</label>
+      <input type="text" id="roomName">
     </div>
+
+    <div class="form-row">
+      <label>Capacity</label>
+      <input type="number" id="roomCapacity">
+    </div>
+
+    <div class="form-row">
+      <label>Location</label>
+      <input type="text" id="roomLocation">
+    </div>
+
+    <button id="addRoomBtn">Add Room</button>
   </div>
 
-  <div class="section">
+  <!-- RESOURCES -->
+  <div id="resourcesSection" class="card">
     <h2>Resources</h2>
+
     <table id="resourcesTable">
       <thead>
         <tr>
@@ -47,17 +64,30 @@
       <tbody></tbody>
     </table>
 
+    <h3>Add Resource</h3>
+
     <div class="form-row">
-      <h3>Add Resource</h3>
-      <label>Name <input type="text" id="resourceName"></label>
-      <label>Type <input type="text" id="resourceType"></label>
-      <label>Condition <input type="text" id="resourceCondition"></label>
-      <button id="addResourceBtn">Add Resource</button>
+      <label>Name</label>
+      <input type="text" id="resourceName">
     </div>
+
+    <div class="form-row">
+      <label>Type</label>
+      <input type="text" id="resourceType">
+    </div>
+
+    <div class="form-row">
+      <label>Condition</label>
+      <input type="text" id="resourceCondition">
+    </div>
+
+    <button id="addResourceBtn">Add Resource</button>
   </div>
 
-  <div class="section">
+  <!-- PEOPLE -->
+  <div id="peopleSection" class="card">
     <h2>People</h2>
+
     <table id="peopleTable">
       <thead>
         <tr>
@@ -71,16 +101,29 @@
       <tbody></tbody>
     </table>
 
+    <h3>Add Person</h3>
+
     <div class="form-row">
-      <h3>Add Person</h3>
-      <label>Name <input type="text" id="personName"></label>
-      <label>Role <input type="text" id="personRole"></label>
-      <label>Availability <input type="text" id="personAvailability"></label>
-      <button id="addPersonBtn">Add Person</button>
+      <label>Name</label>
+      <input type="text" id="personName">
     </div>
+
+    <div class="form-row">
+      <label>Role</label>
+      <input type="text" id="personRole">
+    </div>
+
+    <div class="form-row">
+      <label>Availability</label>
+      <input type="text" id="personAvailability">
+    </div>
+
+    <button id="addPersonBtn">Add Person</button>
   </div>
 
-  <script src="inventory.js"></script>
+</div>
+
+<script src="inventory.js"></script>
 </body>
 </html>
 
