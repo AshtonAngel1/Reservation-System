@@ -11,7 +11,7 @@ function createDeleteButton(type, id) {
   btn.addEventListener("click", async () => {
     await fetch(`/${type}/${id}`, { method: "DELETE" });
     loadTables();
-  };
+  });
   return btn;
 }
 
