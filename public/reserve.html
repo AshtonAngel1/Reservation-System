@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Make a Reservation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>Make a Reservation</h1>
+
+<form id="reservationForm">
+
+  <label>
+    Select Item:
+    <select id="itemSelect"></select>
+  </label>
+  <br>
+
+  <label>
+    Start Date:
+    <input type="date" id="startDate" required>
+  </label>
+  <br>
+
+  <label>
+    End Date:
+    <input type="date" id="endDate" required>
+  </label>
+  <br>
+
+  <button type="submit">Reserve</button>
+</form>
+
+<div id="reserveMessage"></div>
+
+<script src="reserve.js"></script>
+</body>
+</html>
