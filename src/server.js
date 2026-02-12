@@ -37,6 +37,8 @@ let people = [
   { id: 3, name: "Charlie", role: "Lab Assistant", availability_notes: "Flexible" }
 ];
 
+let reservations = [];
+
 // --------- API ROUTES ---------
 
 // Register
@@ -190,6 +192,45 @@ app.delete("/people/:id",(req,res)=>{
   people = people.filter(p=>p.id != req.params.id);
   res.json({message:"Person deleted"});
 });
+
+// Reservations (Temporary In-Memory)
+app.get("/reservations", (req, res) => {
+  const upcoming = reservations
+    .filter(r => new Date(r.end_date) >= new Date())
+    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+  res.json(upcoming);
+});
+
+app.post("/reservations", (req, res) => {
+  const { item_type, item_id, user_email, start_date, end_date } = req.body;
+
+  if (!item_type || !item_id || !user_email || !start_date || !end_date) {
+    return res.status(400).json({ error: "All fields required" });
+  }
+
+  if (new Date(end_date) <= new Date(start_date)) {
+    return res.status(400).json({ error: "End date must be after start date" });
+  }
+
+  const newReservation = {
+    id: reservations.length ? reservations[reservations.length - 1].id + 1 : 1,
+    item_type,
+    item_id,
+    user_email,
+    start_date,
+    end_date
+  };
+
+  reservations.push(newReservation);
+  res.status(201).json(newReservation);
+});
+
+app.delete("/reservations/:id", (req, res) => {
+  reservations = reservations.filter(r => r.id != req.params.id);
+  res.json({ message: "Reservation deleted" });
+});
+
 
 // --------- Serve frontend AFTER API ROUTES ---------
 app.use(express.static(path.join(__dirname, "../public")));
