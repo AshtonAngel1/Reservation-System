@@ -1,38 +1,68 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Make a Reservation</title>
+  <title>Create Reservation</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <h2>Create Reservation</h2>
 
-<h1>Make a Reservation</h1>
+  <form id="reservationForm">
+    <label>Item Type:</label>
+    <select id="itemType" required>
+      <option value="room">Room</option>
+      <option value="resource">Resource</option>
+      <option value="person">Person</option>
+    </select>
 
-<form id="reservationForm">
+    <label>Item ID:</label>
+    <input type="number" id="itemId" required>
 
-  <label>
-    Select Item:
-    <select id="itemSelect"></select>
-  </label>
-  <br>
+    <label>Your Email:</label>
+    <input type="email" id="userEmail" required>
 
-  <label>
-    Start Date:
+    <label>Start Date:</label>
     <input type="date" id="startDate" required>
-  </label>
-  <br>
 
-  <label>
-    End Date:
+    <label>End Date:</label>
     <input type="date" id="endDate" required>
-  </label>
-  <br>
 
-  <button type="submit">Reserve</button>
-</form>
+    <button type="submit">Reserve</button>
+  </form>
 
-<div id="reserveMessage"></div>
+  <p id="message"></p>
 
-<script src="reserve.js"></script>
+  <script>
+    const form = document.getElementById("reservationForm");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const reservation = {
+        item_type: document.getElementById("itemType").value,
+        item_id: document.getElementById("itemId").value,
+        user_email: document.getElementById("userEmail").value,
+        start_date: document.getElementById("startDate").value,
+        end_date: document.getElementById("endDate").value
+      };
+
+      const response = await fetch("/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reservation)
+      });
+
+      const data = await response.json();
+      const message = document.getElementById("message");
+
+      if (response.ok) {
+        message.textContent = "Reservation created successfully!";
+        form.reset();
+      } else {
+        message.textContent = data.error || "Error creating reservation";
+      }
+    });
+  </script>
 </body>
 </html>
+
