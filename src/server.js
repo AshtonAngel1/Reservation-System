@@ -250,7 +250,19 @@ app.delete("/people/:id",(req,res)=>{
 
 // Reservations
 app.get("/reservations", (req, res) => {
-  db.query("SELECT * FROM reservations WHERE end_date >= NOW() ORDER BY start_date ASC", 
+  db.query(`
+    SELECT 
+      reservations.id,
+      reservations.item_type,
+      reservations.item_id,
+      users.email AS user_email,
+      reservations.start_date,
+      reservations.end_date
+    FROM reservations
+    JOIN users ON reservations.user_id = users.id
+    WHERE reservations.end_date >= NOW()
+    ORDER BY reservations.start_date ASC
+  `, 
     (err, reservations) => {
       if (err) return res.status(500).json(err);
       res.json(reservations);
