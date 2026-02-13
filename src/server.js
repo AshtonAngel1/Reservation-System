@@ -11,34 +11,6 @@ const app = express();
 // Parse JSON requests
 app.use(express.json());
 
-// --------- FAKE DATABASE FOR SPRINT 1 ---------
-let users = [
-  {
-    email: "testuser@school.edu",
-    passwordHash: "$2b$10$8mJycAIvyJaBsx53Cz2b8.nFWH922wbnKgCWbaaiuVwQEUMFTGj8S"
-  }
-];
-
-let rooms = [
-  { id: 1, name: "Study Room A", capacity: 4, location: "1st Floor" },
-  { id: 2, name: "Conference Room", capacity: 10, location: "2nd Floor" },
-  { id: 3, name: "Recording Studio", capacity: 2, location: "Basement" }
-];
-
-let resources = [
-  { id: 1, name: "Camera", type: "Media", condition: "Good" },
-  { id: 2, name: "Laptop", type: "Computer", condition: "Good" },
-  { id: 3, name: "Tripod", type: "Media", condition: "Fair" }
-];
-
-let people = [
-  { id: 1, name: "Alice", role: "Tutor", availability_notes: "MWF 9-5" },
-  { id: 2, name: "Bob", role: "Technician", availability_notes: "TTh 10-4" },
-  { id: 3, name: "Charlie", role: "Lab Assistant", availability_notes: "Flexible" }
-];
-
-let reservations = [];
-
 // --------- API ROUTES ---------
 
 // Register
@@ -57,19 +29,36 @@ app.post("/register",
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         console.log("VALIDATION ERRORS:", errors.array());
-        return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        return res.status(400).json({ 
+          errors: errors.array().map(e => e.msg) 
+        });
       }
 
       const { email, password } = req.body;
 
-      if(users.find(u => u.email === email)) {
-        return res.status(400).json({ errors: ["User already exists"] });
-      }
-
+      // Hash password
       const passwordHash = await bcrypt.hash(password, 10);
-      users.push({ email, passwordHash });
 
-      return res.status(200).json({ message: "User registered successfully" });
+      // Insert into DB, mysql checks duplicates
+      db.query(
+        "INSERT INTO users (email, password_hash) VALUES (?, ?)",
+        [email, passwordHash],
+        (err, result) => {
+          if (err) {
+            if (err.code === 'ER_DUP_ENTRY') {
+              return res.status(400).json({ 
+                errors: ["User already Exists"] 
+              });
+            }
+            return res.status(500).json(err);
+          }
+
+          return res.status(200).json({ 
+            message: "User registered successfully" 
+          });
+        }
+      );
+
     } catch(err) {
       console.error(err);
       return res.status(500).json({ errors: ["Server error: " + err.message] });
@@ -78,22 +67,66 @@ app.post("/register",
 
 // Login
 app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find(u => u.email === email);
-  if (!user) return res.status(400).json({ message: "Invalid email or password" });
+  try {
+    const { email, password } = req.body;
 
-  const match = await bcrypt.compare(password, user.passwordHash);
-  if (!match) return res.status(400).json({ message: "Invalid email or password" });
+    if (!email || !password) {
+      return res.status(400).json({ 
+        message: "Email and password are required" }
+      );
+    }
 
-  res.json({ message: "Login successful" });
+    // Get User from DB:
+    db.query("SELECT * FROM users WHERE email = ?", 
+      [email], 
+      async (err, results) => {
+        if (err) return res.status(500).json(err);
+
+        // Check if User Exists
+        if (results.length === 0) {
+          return res.status(400).json({ 
+            message: "Invalid email or password" 
+          });
+        }
+
+        const user = results[0];
+
+        // Compare password
+        const match = await bcrypt.compare(password, user.password_hash);
+
+        if (!match) {
+          return res.status(400).json({
+            message: "Invalid email or password"
+          });
+        }
+
+        // Successful login
+        return res.json({
+          message: "Login successful"
+        });
+      }
+    );
+
+  } catch(err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
 });
 
 // Inventory
 app.get("/inventory", (req, res) => {
-  res.json({
-    rooms,
-    resources,
-    people
+  db.query("SELECT * FROM rooms", (err, rooms) => {
+    if (err) return res.status(500).json(err);
+
+    db.query("SELECT * FROM resources", (err, resources) => {
+      if (err) return res.status(500).json(err);
+
+      db.query("SELECT * FROM people", (err, people) => {
+        if (err) return res.status(500).json(err);
+  
+        res.json({ rooms, resources, people });
+      });
+    });
   });
 });
 
@@ -117,19 +150,28 @@ app.post("/rooms", (req, res) => {
     return res.status(400).json({ error: "Capacity must be a positive integer" });
   }
 
-  const newRoom = {
-    id: rooms.length ? rooms[rooms.length - 1].id + 1 : 1,
-    name,
-    capacity,
-    location
-  };
+  // New DB version:
 
-  rooms.push(newRoom);
-  res.status(201).json(newRoom);
+  db.query(
+    "INSERT INTO rooms (name, capacity, location) VALUES (?, ?, ?)",
+    [name, capacity, location],
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.status(201).json({ id: result.insertId });
+    }
+  );
+
 });
 app.delete("/rooms/:id",(req,res)=>{
-  rooms = rooms.filter(r=>r.id != req.params.id);
-  res.json({message:"Room deleted"});
+
+  // New DB Delete Version:
+  db.query("DELETE FROM rooms WHERE id = ?", 
+    [req.params.id], 
+    (err) => {
+      if (err) return res.status(500).json(err);
+      res.json({ message: "Room Deleted" });
+    }
+  );
 });
 
 // Resources
@@ -161,8 +203,14 @@ app.post("/resources", (req, res) => {
 
 
 app.delete("/resources/:id",(req,res)=>{
-  resources = resources.filter(r=>r.id != req.params.id);
-  res.json({message:"Resource deleted"});
+  // New DB Delete Version:
+  db.query("DELETE FROM resources WHERE id = ?", 
+    [req.params.id], 
+    (err) => {
+      if (err) return res.status(500).json(err);
+      res.json({ message: "Resource Deleted" });
+    }
+  );
 });
 
 // People
@@ -177,29 +225,37 @@ app.post("/people", (req, res) => {
     return res.status(400).json({ error: "All people fields are required" });
   }
 
-  const newPerson = {
-    id: people.length ? people[people.length - 1].id + 1 : 1,
-    name,
-    role,
-    availability_notes
-  };
+  // New DB version:
 
-  people.push(newPerson);
-  res.status(201).json(newPerson);
+  db.query(
+    "INSERT INTO people (name, role, availability_notes) VALUES (?, ?, ?)",
+    [name, role, availability_notes],
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.status(201).json({ id: result.insertId });
+    }
+  );
 });
 
 app.delete("/people/:id",(req,res)=>{
-  people = people.filter(p=>p.id != req.params.id);
-  res.json({message:"Person deleted"});
+  // New DB Delete Version:
+  db.query("DELETE FROM people WHERE id = ?", 
+    [req.params.id], 
+    (err) => {
+      if (err) return res.status(500).json(err);
+      res.json({ message: "Person Deleted" });
+    }
+  );
 });
 
 // Reservations (Temporary In-Memory)
 app.get("/reservations", (req, res) => {
-  const upcoming = reservations
-    .filter(r => new Date(r.end_date) >= new Date())
-    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-
-  res.json(upcoming);
+  db.query("SELECT * FROM reservations WHERE end_date >= NOW() ORDER BY start_date ASC", 
+    (err, reservations) => {
+      if (err) return res.status(500).json(err);
+      res.json(reservations);
+    }
+  );
 });
 
 app.post("/reservations", (req, res) => {
@@ -213,22 +269,28 @@ app.post("/reservations", (req, res) => {
     return res.status(400).json({ error: "End date must be after start date" });
   }
 
-  const newReservation = {
-    id: reservations.length ? reservations[reservations.length - 1].id + 1 : 1,
-    item_type,
-    item_id,
-    user_email,
-    start_date,
-    end_date
-  };
+  // New DB version:
 
-  reservations.push(newReservation);
-  res.status(201).json(newReservation);
+  db.query(
+    "INSERT INTO reservations (item_type, item_id, user_email, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
+    [item_type, item_id, user_email, start_date, end_date],
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.status(201).json({ id: result.insertId });
+    }
+  );
+
 });
 
 app.delete("/reservations/:id", (req, res) => {
-  reservations = reservations.filter(r => r.id != req.params.id);
-  res.json({ message: "Reservation deleted" });
+  // New DB Delete Version:
+  db.query("DELETE FROM reservations WHERE id = ?", 
+    [req.params.id], 
+    (err) => {
+      if (err) return res.status(500).json(err);
+      res.json({ message: "Reservation Deleted" });
+    }
+  );
 });
 
 
