@@ -1,64 +1,194 @@
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background-color: #f4f6f8;
+/* ===== Global Reset & Base ===== */
+* {
+  box-sizing: border-box;
 }
 
+body {
+  margin: 0;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: linear-gradient(135deg, #eef2f7, #f9fbfd);
+  color: #333;
+  line-height: 1.5;
+}
+
+/* ===== Page Layout ===== */
 .page {
   max-width: 1100px;
-  margin: 30px auto;
+  margin: 40px auto;
+  padding: 0 20px;
 }
 
 h1 {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 35px;
+  font-weight: 600;
+  color: #1f2937;
 }
 
+/* ===== Card ===== */
 .card {
-  background: white;
-  padding: 20px;
+  background: #ffffff;
+  padding: 25px;
   margin-bottom: 30px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* ===== Tables ===== */
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+thead {
+  background-color: #2563eb;
 }
 
 th {
-  background-color: #0066cc;
-  color: white;
+  color: #ffffff;
+  text-align: left;
+  font-weight: 600;
+  padding: 12px;
 }
 
-th, td {
-  padding: 10px;
-  border: 1px solid #ccc;
+td {
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
+tbody tr:hover {
+  background-color: #f1f5f9;
+}
+
+/* ===== Forms ===== */
 .form-row {
   display: flex;
   flex-direction: column;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+label {
+  font-size: 14px;
+  margin-bottom: 5px;
+  color: #374151;
 }
 
 input {
-  padding: 8px;
+  padding: 10px 12px;
   font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%
 }
 
+
+input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* ===== Buttons ===== */
 button {
-  padding: 10px;
-  background-color: #0066cc;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
 }
 
 button:hover {
-  background-color: #004999;
+  background: linear-gradient(135deg, #1e40af, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(37, 99, 235, 0.35);
 }
 
+button:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+#loginForm {
+  display: flex;
+  flex-direction: column;
+}
+#loginForm button {
+  align-self: center;
+  width: 50%;
+  max-width: 200;
+}
+
+#registerForm {
+  display: flex;
+  flex-direction: column;
+}
+#registerForm button {
+  align-self: center;
+  width: 50%;
+  max-width: 200;
+}
+
+.btn-link {
+  display: inline-block;
+  padding: 12px 25px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-link:hover {
+  background: linear-gradient(135deg, #1e40af, #1d4ed8);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(37, 99, 235, 0.35);
+  color: white;
+}
+
+
+
+/* ===== Login / Centered Containers ===== */
+.container {
+  max-width: 420px;
+  margin: 120px auto;
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.12);
+}
+
+.container h1 {
+  margin-bottom: 20px;
+}
+
+.container p {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 14px;
+}
+
+.container a {
+  /* color: #2563eb; */
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.container a:hover {
+  text-decoration: underline;
+}
