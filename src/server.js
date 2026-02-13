@@ -41,7 +41,7 @@ app.post("/register",
 
       // Insert into DB, mysql checks duplicates
       db.query(
-        "INSERT INTO users (email, password_hash) VALUES (?, ?)",
+        "INSERT INTO users (email, passwordHash) VALUES (?, ?)",
         [email, passwordHash],
         (err, result) => {
           if (err) {
