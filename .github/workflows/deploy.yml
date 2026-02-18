@@ -13,12 +13,11 @@ jobs:
         steps:
             - uses: actions/checkout@v3
             - run: npm ci
-            - run: npm run build
             - name: Get SSH Key  and set permissions
               run: |
                 mkdir -p ~/.ssh
                 echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
             - name: Deploy using SCP
-              run: scp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -r ./dist/* ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/node-app
+              run: scp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -r . ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/node-app
             - name: Restart Server
               run: ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ~/node-app && npm install && pm2 restart 0"
