@@ -92,7 +92,7 @@ app.post("/login", async (req, res) => {
         const user = results[0];
 
         // Compare password
-        const match = await bcrypt.compare(password, user.password_hash);
+        const match = await bcrypt.compare(password, user.passwordHash);
 
         if (!match) {
           return res.status(400).json({
@@ -248,9 +248,21 @@ app.delete("/people/:id",(req,res)=>{
   );
 });
 
-// Reservations (Temporary In-Memory)
+// Reservations
 app.get("/reservations", (req, res) => {
-  db.query("SELECT * FROM reservations WHERE end_date >= NOW() ORDER BY start_date ASC", 
+  db.query(`
+    SELECT 
+      reservations.id,
+      reservations.item_type,
+      reservations.item_id,
+      users.email AS user_email,
+      reservations.start_date,
+      reservations.end_date
+    FROM reservations
+    JOIN users ON reservations.user_id = users.id
+    WHERE reservations.end_date >= NOW()
+    ORDER BY reservations.start_date ASC
+  `, 
     (err, reservations) => {
       if (err) return res.status(500).json(err);
       res.json(reservations);
@@ -270,16 +282,46 @@ app.post("/reservations", (req, res) => {
   }
 
   // New DB version:
-
-  db.query(
-    "INSERT INTO reservations (item_type, item_id, user_email, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
-    [item_type, item_id, user_email, start_date, end_date],
-    (err, result) => {
+  db.query("SELECT * FROM users WHERE email = ?",
+    [user_email],
+    (err, userResults) => {
       if (err) return res.status(500).json(err);
-      res.status(201).json({ id: result.insertId });
+
+      if (userResults.length === 0) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
+      const user_id = userResults[0].id;
+
+      // Check for conflicts:
+      db.query(
+        "SELECT * FROM reservations WHERE item_type = ? AND item_id = ? AND start_date < ? AND end_date > ?",
+        [item_type, item_id, end_date, start_date],
+        (err, conflicts) => {
+          if (err) return res.status(500).json(err);
+
+          if (conflicts.length > 0) {
+            return res.status(400).json({ error: 
+              "This Item is already reserved during that time" 
+            });
+          }
+          
+
+          db.query(
+            "INSERT INTO reservations (item_type, item_id, user_id, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
+            [item_type, item_id, user_id, start_date, end_date],
+            (err, result) => {
+              if (err) return res.status(500).json(err);
+              res.status(201).json({ 
+                message: "Reservation created successfully",
+                id: result.insertId 
+              });
+            }
+          );
+        }
+      );
     }
   );
-
 });
 
 app.delete("/reservations/:id", (req, res) => {
