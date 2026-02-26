@@ -3,6 +3,9 @@
 <head>
   <title>Create Reservation</title>
   <link rel="stylesheet" href="styles.css">
+  <!-- calendar -->
+  <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.20/index.global.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.20/index.global.min.css" rel="stylesheet">
 </head>
 <body>
   <h2>Create Reservation</h2>
@@ -31,7 +34,7 @@
   </form>
 
   <p id="message"></p>
-
+  <div id="calendar" style="margin-top:30 px; margin-left:30px; margin-right:30px"></div>
   <script>
     const form = document.getElementById("reservationForm");
 
@@ -63,6 +66,12 @@
       }
     });
   </script>
+
+<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.20/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.20/index.global.min.js"></script>
+
+<script src="calendar.js"></script>
+
 </body>
 </html>
 
