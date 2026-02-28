@@ -1,3 +1,4 @@
+const db = require('../db');
 
 class reservationUtils {
     constructor() {
@@ -7,14 +8,14 @@ class reservationUtils {
     // Validation checks for the reservation fields (No return values, equivalent to void function in Java)
     static noFieldIsEmpty(reservation) {
         if (!reservation.item_type || !reservation.item_id || !reservation.user_id || !reservation.start_date || !reservation.end_date) {
-            return res.status(400).json({ error: "All fields required" });
+            throw new Error("All fields required");
         }
     }
 
 
     static endDateIsAfterStartDate(reservation) {
         if (new Date(reservation.end_date) <= new Date(reservation.start_date)) {
-            return res.status(400).json({ error: "End date must be after start date" });
+            throw new Error("End date must be after start date");
         }
     }
 
@@ -26,29 +27,24 @@ class reservationUtils {
         );
 
         if (conflicts.length > 0) {
-            return res.status(400).json({ error: 
-                "This Item is already reserved during that time" 
-            });
+            throw new Error("This Item is already reserved during that time");
         }
     }
 
-
-    static async getUserIdFromEmail(user_email) {
-        const [userResults] = await db.query("SELECT * FROM users WHERE email = ?", 
-            [user_email]
+    getAllUserReservations(user_id) {
+        const [reservations] = db.query(
+            "SELECT * FROM reservations WHERE user_id = ?",
+            [user_id]
         );
 
-        if (userResults.length === 0) {
-        return res.status(400).json({ error: "User not found" });
-        }
-
-        const user_id = userResults[0].id;
-        
-        return user_id;
+        return reservations;
     }
 
+
+    // For view-reservation.html
     getReservations() {
         // Get all reservations from the database
+        
     }
 }
 

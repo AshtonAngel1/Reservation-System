@@ -28,15 +28,9 @@ class ReservationImpl {
                 [this.item_type, this.item_id, this.user_id, this.start_date, this.end_date]
             );
 
-            console.log("Reservation added successfully");
-            res.status(201).json({ 
-                message: "Reservation created successfully",
-                id: result.insertId 
-            });
-
         } catch (error) {
             console.error("Error adding reservation:", error);
-            return res.status(500).json({ message: "Server error: " + error.message });
+            throw error;
         }
     }
 

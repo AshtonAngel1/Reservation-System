@@ -4,6 +4,18 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const { body, validationResult } = require("express-validator");
 const path = require("path");
+const userImpl = require('./reservation/userImpl');
+const ReservationImpl = require('./reservation/ReservationImpl');
+
+// Session Configuration
+const session = require("express-session");
+
+app.use(session({
+  secret: "supersecretkey",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set to true if using HTTPS
+}));
 
 // Create app
 const app = express();
@@ -14,55 +26,26 @@ app.use(express.json());
 // --------- API ROUTES ---------
 
 // Register
-app.post("/register",
-  body("email")
-    .isEmail().withMessage("Email must be valid")
-    .matches(/\.(com|org|edu|gov)$/i).withMessage("Email must end with .com/.org/.edu/.gov"),
-  body("password")
-    .isLength({ min: 8 }).withMessage("Password must be at least 8 characters")
-    .matches(/[a-zA-Z]/).withMessage("Password must include a letter")
-    .matches(/[0-9]/).withMessage("Password must include a number")
-    .matches(/[@$!%*?&]/).withMessage("Password must include a special character (@$!%*?&)"),
-  async (req, res) => {
-    try {
-      console.log("REQ BODY:", req.body);
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        console.log("VALIDATION ERRORS:", errors.array());
-        return res.status(400).json({ 
-          errors: errors.array().map(e => e.msg) 
-        });
-      }
+app.post("/register", async (req, res) => {
+  try {    
 
-      const { email, password } = req.body;
+    const { email, password } = req.body;
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 10);
+    const user = new userImpl(email, password);
 
-      // Insert into DB, mysql checks duplicates
-      try {
-        const result = await db.query(
-          "INSERT INTO users (email, passwordHash) VALUES (?, ?)",
-          [email, passwordHash]
-        );
+    await user.registerUser();
 
-        return res.status(200).json({
-          message: "User registered successfully"
-        });
+    return res.status(200).json({
+      message: "User registered successfully"
+    });
 
-      } catch (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
-          return res.status(400).json({ 
-                errors: ["User already Exists"] 
-              });
-        }
-        return res.status(500).json(err);
-      }
+  } catch(err) {
 
-    } catch(err) {
-      console.error(err);
-      return res.status(500).json({ errors: ["Server error: " + err.message] });
-    }
+    console.error(err);
+    return res.status(400).json({ 
+      errors: [err.message] 
+    });
+  }
 });
 
 // Login
@@ -70,43 +53,22 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ 
-        message: "Email and password are required" }
-      );
-    }
+    const user = new userImpl(email, password);
 
-    // Get User from DB:
-    const [results] = await db.query("SELECT * FROM users WHERE email = ?", 
-      [email]
-    );
+    const loggedInUser = await user.validateUserLogIn();
 
-    // Check if User Exists
-    if (results.length === 0) {
-      return res.status(400).json({ 
-        message: "Invalid email or password" 
-      });
-    }
+    // Set session variables for user:
+    req.session.user = loggedInUser;
 
-    const user = results[0];
-
-    // Compare password
-    const match = await bcrypt.compare(password, user.passwordHash);
-
-    if (!match) {
-      return res.status(400).json({
-        message: "Invalid email or password"
-      });
-    }
-
-    // Successful login
     return res.json({
       message: "Login successful"
     });
 
   } catch(err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    return res.status(400).json({ 
+      message: err.message 
+    });
   }
 });
 
@@ -250,7 +212,7 @@ app.delete("/people/:id", async (req,res)=>{
   }
 });
 
-// Reservations
+// All Reservations
 app.get("/reservations", async (req, res) => {
   try {
     const [reservations] = await db.query(`
@@ -277,53 +239,30 @@ app.get("/reservations", async (req, res) => {
 
 app.post("/reservations", async (req, res) => {
   try {
-    const { item_type, item_id, user_email, start_date, end_date } = req.body;
 
-    if (!item_type || !item_id || !user_email || !start_date || !end_date) {
-      return res.status(400).json({ error: "All fields required" });
+    if (!req.session.user) {
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
-    if (new Date(end_date) <= new Date(start_date)) {
-      return res.status(400).json({ error: "End date must be after start date" });
-    }
-
-    // Get User ID from email:
-    const [userResults] = await db.query("SELECT * FROM users WHERE email = ?", 
-      [user_email]
+    const reservation = new ReservationImpl(
+      req.body.item_type,
+      req.body.item_id,
+      req.session.user.id,
+      req.body.start_date,
+      req.body.end_date
     );
 
-    if (userResults.length === 0) {
-      return res.status(400).json({ error: "User not found" });
-    }
+    await reservation.validateReservation();
+    await reservation.addReservation();
 
-    const user_id = userResults[0].id;
-
-    // Check for conflicts:
-    const [conflicts] = await db.query(
-      "SELECT * FROM reservations WHERE item_type = ? AND item_id = ? AND start_date < ? AND end_date > ?",
-      [item_type, item_id, end_date, start_date]
-    );
-
-    if (conflicts.length > 0) {
-      return res.status(400).json({ error: 
-        "This Item is already reserved during that time" 
-      });
-    }
-          
-    // Insert reservation:
-    const [result] = await db.query(
-      "INSERT INTO reservations (item_type, item_id, user_id, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
-      [item_type, item_id, user_id, start_date, end_date]
-    );
-
+    console.log("Reservation added successfully");
     res.status(201).json({ 
-      message: "Reservation created successfully",
-      id: result.insertId 
+        message: "Reservation created successfully",
     });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    return res.status(400).json({ error: err.message });
   }
 });
 
