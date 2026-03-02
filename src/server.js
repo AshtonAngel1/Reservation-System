@@ -138,19 +138,19 @@ app.get("/inventory/available", requireAuth, async (req, res) => {
     }
 
     const sql = `
-      SELECT i.*
-      FROM inventory i
+      SELECT i.id, i.name, i.type
+      FROM items i
       WHERE i.type = ?
+      AND i.active = TRUE
       AND i.id NOT IN (
         SELECT r.item_id
         FROM reservations r
-        WHERE r.item_type = ?
-        AND r.start_date < ?
+        WHERE r.start_date < ?
         AND r.end_date > ?
       )
     `;
 
-    const [rows] = await db.execute(sql, [type, type, end, start]);
+    const [rows] = await db.execute(sql, [type, end, start]);
 
     res.json(rows);
 
