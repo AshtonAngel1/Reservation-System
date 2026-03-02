@@ -98,7 +98,7 @@ app.post("/login", async (req, res) => {
 
   } catch(err) {
     console.error(err);
-    return res.status(400).json({ 
+    return res.status(401).json({ 
       message: err.message 
     });
   }
@@ -130,7 +130,7 @@ app.get("/inventory", requireAdmin, async (req, res) => {
 
 
 // Rooms
-app.post("/rooms", async (req, res) => {
+app.post("/rooms", requireAdmin, async (req, res) => {
   try {
     let { name, capacity, location } = req.body;
 
@@ -167,7 +167,7 @@ app.post("/rooms", async (req, res) => {
   }
 
 });
-app.delete("/rooms/:id", async (req,res)=>{
+app.delete("/rooms/:id", requireAdmin, async (req,res)=>{
   try {
     await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
     res.json({ message: "Room Deleted" });
@@ -179,7 +179,7 @@ app.delete("/rooms/:id", async (req,res)=>{
 });
 
 // Resources
-app.post("/resources", async (req, res) => {
+app.post("/resources", requireAdmin, async (req, res) => {
   try {
     let { name, resource_type} = req.body;
 
@@ -211,7 +211,7 @@ app.post("/resources", async (req, res) => {
 });
 
 
-app.delete("/resources/:id", async (req,res)=>{
+app.delete("/resources/:id", requireAdmin, async (req,res)=>{
   try {
   await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
   res.json({ message: "Resource Deleted" });
@@ -223,7 +223,7 @@ app.delete("/resources/:id", async (req,res)=>{
 });
 
 // People
-app.post("/people", async (req, res) => {
+app.post("/people", requireAdmin, async (req, res) => {
   try {
     let { first_name, last_name, role } = req.body;
 
@@ -257,7 +257,7 @@ app.post("/people", async (req, res) => {
   }
 });
 
-app.delete("/people/:id", async (req,res)=>{
+app.delete("/people/:id", requireAdmin, async (req,res)=>{
   try {
     await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
     res.json({ message: "Person Deleted" });
@@ -320,12 +320,8 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
 });
 
 
-app.post("/reservations", async (req, res) => {
+app.post("/reservations", requireAuth, async (req, res) => {
   try {
-
-    if (!req.session.user) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
 
     const reservation = new ReservationImpl(
       req.body.item_id,
