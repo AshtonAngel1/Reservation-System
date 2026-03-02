@@ -129,6 +129,38 @@ app.get("/inventory", requireAdmin, async (req, res) => {
 });
 
 
+app.get("/inventory/available", requireAuth, async (req, res) => {
+  try {
+    const { type, start, end } = req.query;
+
+    if (!type || !start || !end) {
+      return res.status(400).json({ error: "Missing required parameters" });
+    }
+
+    const sql = `
+      SELECT i.*
+      FROM inventory i
+      WHERE i.type = ?
+      AND i.id NOT IN (
+        SELECT r.item_id
+        FROM reservations r
+        WHERE r.item_type = ?
+        AND r.start_date < ?
+        AND r.end_date > ?
+      )
+    `;
+
+    const [rows] = await db.execute(sql, [type, type, end, start]);
+
+    res.json(rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
 // Rooms
 app.post("/rooms", requireAdmin, async (req, res) => {
   try {
@@ -392,6 +424,10 @@ app.get("/admin/inventory", requireAdmin, (req, res) => {
 
 app.get("/login", preventLoggedInAccess, (req, res) => {
   res.sendFile(path.join(__dirname, "../public/login.html"));
+});
+
+app.get("/reserve", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/reserve.html"));
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
