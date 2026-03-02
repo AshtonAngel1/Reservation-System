@@ -36,23 +36,27 @@ class userImpl {
 
     async validateUserLogIn() {
         userUtils.noFieldIsEmpty(this);
-        userUtils.userExists(this.#email);
-
-        const [userResults] = await db.query("SELECT * FROM users WHERE id = ?", 
-            [this.#id]
+        const [userResults] = await db.query(
+            "SELECT id, email, password, is_admin FROM users WHERE email = ?",
+            [this.#email]
         );
 
-        const hashedPassword = userResults[0].password;
-
-        // Check if the provided password matches the hashed password in the database
-        if (!await userUtils.dycryptPassword(this.#password, hashedPassword)) {
+        if (userResults.length === 0) {
             throw new Error("Invalid email or password");
         }
 
-        this.#id = userResults[0].id;
+        const user = userResults[0];
+
+        // Check if the provided password matches the hashed password in the database
+        if (!await userUtils.dycryptPassword(this.#password, user.password)) {
+            throw new Error("Invalid email or password");
+        }
+
+        this.#id = user.id;
         return {
-            id: this.#id,
-            email: this.#email
+            id: user.id,
+            email: user.email,
+            is_admin: user.is_admin === 1
         };
     }
 
