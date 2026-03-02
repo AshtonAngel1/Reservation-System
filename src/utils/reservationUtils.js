@@ -22,8 +22,8 @@ class reservationUtils {
 
     static async checkForConflicts(reservation) {
         const [conflicts] = await db.query(
-            "SELECT * FROM reservations WHERE item_type = ? AND item_id = ? AND start_date < ? AND end_date > ?",
-            [reservation.item_type, reservation.item_id, reservation.end_date, reservation.start_date]
+            "SELECT * FROM reservations WHERE item_id = ? AND start_date < ? AND end_date > ?",
+            [reservation.item_id, reservation.end_date, reservation.start_date]
         );
 
         if (conflicts.length > 0) {
@@ -38,6 +38,17 @@ class reservationUtils {
         );
 
         return reservations;
+    }
+
+    static async checkAvailabilityWindow(reservation) {
+        const [rows] = await db.query(
+            "SELECT * FROM availability_slots WHERE item_id = ? AND start_time <= ? AND end_time >= ?",
+            [reservation.item_id, reservation.start_date, reservation.end_date]
+        );
+
+        if (rows.length === 0) {
+            throw new Error("Reservation outside availability window.");
+        }
     }
 
 

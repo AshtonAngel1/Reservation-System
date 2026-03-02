@@ -1,11 +1,15 @@
 // Import libraries
 const db = require('./db');
 const express = require("express");
-const bcrypt = require("bcrypt");
-const { body, validationResult } = require("express-validator");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/ReservationImpl');
+
+// Create app
+const app = express();
+
+// Parse JSON requests
+app.use(express.json());
 
 // Session Configuration
 const session = require("express-session");
@@ -17,11 +21,19 @@ app.use(session({
   cookie: { secure: false } // Set to true if using HTTPS
 }));
 
-// Create app
-const app = express();
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  next();
+}
 
-// Parse JSON requests
-app.use(express.json());
+function requireAdmin(req, res, next) {
+  if (!req.session.user || !req.session.user.is_admin) {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
+}
 
 // --------- API ROUTES ---------
 
@@ -75,11 +87,20 @@ app.post("/login", async (req, res) => {
 // Inventory
 app.get("/inventory", async (req, res) => {
   try {
-    const [rooms] = await db.query("SELECT * FROM rooms");
-    const [resources] = await db.query("SELECT * FROM resources");
-    const [people] = await db.query("SELECT * FROM people");
+    const [items] = await db.query(`
+      SELECT i.id, i.name, i.type,
+             r.capacity, r.location,
+             p.first_name, p.last_name, p.role,
+             rs.resource_type
+      FROM items i
+      LEFT JOIN rooms r ON i.id = r.item_id
+      LEFT JOIN people p ON i.id = p.item_id
+      LEFT JOIN resources rs ON i.id = rs.item_id
+      WHERE i.active = TRUE
+    `);
+    
 
-    res.json({ rooms, resources, people });
+    res.json({ items });
 
   } catch (err) {
     console.error(err);
@@ -109,21 +130,28 @@ app.post("/rooms", async (req, res) => {
     }
 
     const [result] = await db.query(
-      "INSERT INTO rooms (name, capacity, location) VALUES (?, ?, ?)",
-      [name, capacity, location]
+      "INSERT INTO items (name, type) VALUES (?, 'room')",
+      [name]
     );
 
-    res.status(201).json({ id: result.insertId });
+    const itemId = result.insertId;
+
+    await db.query(
+      "INSERT INTO rooms (item_id, capacity, location) VALUES (?, ?, ?)",
+      [itemId, capacity, location]
+    );
+
+    res.status(201).json({ id: itemId });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    return res.status(500).json({ message: err.message });
   }
 
 });
 app.delete("/rooms/:id", async (req,res)=>{
   try {
-    await db.query("DELETE FROM rooms WHERE id = ?", [req.params.id]);
+    await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
     res.json({ message: "Room Deleted" });
 
   } catch (err) {
@@ -135,38 +163,39 @@ app.delete("/rooms/:id", async (req,res)=>{
 // Resources
 app.post("/resources", async (req, res) => {
   try {
-    let { name, type, condition, quantity } = req.body;
+    let { name, resource_type} = req.body;
 
     name = name?.trim();
-    type = type?.trim();
-    condition = condition?.trim();
-    quantity = Number(quantity);
+    resource_type = resource_type?.trim();
 
-    if (!name || !type || !condition) {
+    if (!name || !resource_type) {
       return res.status(400).json({ error: "All fields required" });
     }
 
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      return res.status(400).json({ error: "Quantity must be positive" });
-    }
-
     const [result] = await db.query(
-      "INSERT INTO resources (name, type, status, quantity) VALUES (?, ?, ?, ?)",
-      [name, type, condition, quantity]
+      "INSERT INTO items (name, type) VALUES (?, 'resource')",
+      [name]
     );
 
-    res.status(201).json({ id: result.insertId });
+    const itemId = result.insertId;
+
+    await db.query(
+      "INSERT INTO resources (item_id, resource_type) VALUES (?, ?)",
+      [itemId, resource_type]
+    );
+
+    res.status(201).json({ id: itemId });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    return res.status(500).json({ message: err.message });
   }
 });
 
 
 app.delete("/resources/:id", async (req,res)=>{
   try {
-  await db.query("DELETE FROM resources WHERE id = ?", [req.params.id]);
+  await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
   res.json({ message: "Resource Deleted" });
 
   } catch (err) {
@@ -178,32 +207,41 @@ app.delete("/resources/:id", async (req,res)=>{
 // People
 app.post("/people", async (req, res) => {
   try {
-    let { name, role, availability_notes } = req.body;
+    let { first_name, last_name, role } = req.body;
 
-    name = name?.trim();
+    first_name = first_name?.trim();
+    last_name = last_name?.trim();
     role = role?.trim();
-    availability_notes = availability_notes?.trim();
 
-    if (!name || !role || !availability_notes) {
+    if (!first_name || !last_name || !role) {
       return res.status(400).json({ error: "All people fields are required" });
     }
 
+    const fullName = `${first_name} ${last_name}`;
+
     const [result] = await db.query(
-      "INSERT INTO people (name, role, availability_notes) VALUES (?, ?, ?)",
-      [name, role, availability_notes]
+      "INSERT INTO items (name, type) VALUES (?, 'person')",
+      [fullName]
     );
 
-    res.status(201).json({ id: result.insertId });
+    const itemId = result.insertId;
+
+    await db.query(
+      "INSERT INTO people (item_id, first_name, last_name, role) VALUES (?, ?, ?, ?)",
+      [itemId, first_name, last_name, role]
+    )
+
+    res.status(201).json({ id: itemId });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    return res.status(500).json({ message: err.message });
   }
 });
 
 app.delete("/people/:id", async (req,res)=>{
   try {
-    await db.query("DELETE FROM people WHERE id = ?", [req.params.id]);
+    await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
     res.json({ message: "Person Deleted" });
 
   } catch (err) {
@@ -212,21 +250,47 @@ app.delete("/people/:id", async (req,res)=>{
   }
 });
 
-// All Reservations
-app.get("/reservations", async (req, res) => {
+// All Reservations can take out where if want past aswell
+app.get("/my-reservations", requireAuth, async (req, res) => {
   try {
+
     const [reservations] = await db.query(`
       SELECT 
-        reservations.id,
-        reservations.item_type,
-        reservations.item_id,
-        users.email AS user_email,
-        reservations.start_date,
-        reservations.end_date
-      FROM reservations
-      JOIN users ON reservations.user_id = users.id
-      WHERE reservations.end_date >= NOW()
-      ORDER BY reservations.start_date ASC
+        r.id,
+        i.name AS item_name,
+        i.type AS item_type,
+        r.start_date,
+        r.end_date
+      FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      WHERE r.user_id = ?
+      ORDER BY r.start_date ASC
+    `, [req.session.user.id]);
+
+    res.json(reservations);
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+
+app.get("/admin/reservations", requireAdmin, async (req, res) => {
+  try {
+
+    const [reservations] = await db.query(`
+      SELECT 
+        r.id,
+        i.name AS item_name,
+        i.type AS item_type,
+        u.email AS user_email,
+        r.start_date,
+        r.end_date
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN items i ON r.item_id = i.id
+      ORDER BY r.start_date ASC
     `);
 
     res.json(reservations);
@@ -237,6 +301,7 @@ app.get("/reservations", async (req, res) => {
   }
 });
 
+
 app.post("/reservations", async (req, res) => {
   try {
 
@@ -245,7 +310,6 @@ app.post("/reservations", async (req, res) => {
     }
 
     const reservation = new ReservationImpl(
-      req.body.item_type,
       req.body.item_id,
       req.session.user.id,
       req.body.start_date,
@@ -266,9 +330,10 @@ app.post("/reservations", async (req, res) => {
   }
 });
 
-app.delete("/reservations/:id", async (req, res) => {
+app.delete("/reservations/:id", requireAuth, async (req, res) => {
   try {
-    await db.query("DELETE FROM reservations WHERE id = ?", [req.params.id]); 
+    
+    await db.query("DELETE FROM reservations WHERE id = ? AND user_id = ?", [req.params.id, req.session.user.id]); 
     res.json({ message: "Reservation Deleted" });
 
   } catch (err) {
@@ -277,6 +342,23 @@ app.delete("/reservations/:id", async (req, res) => {
   }
 });
 
+
+app.delete("/admin/reservations/:id", requireAdmin, async (req, res) => {
+  try {
+    
+    await db.query("DELETE FROM reservations WHERE id = ?", [req.params.id]); 
+    res.json({ message: "Reservation Deleted by Admin" });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+// Admin page protection route
+app.get("/admin/view-reservations", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "../admin_views/view-reservation.html"));
+});
 
 // --------- Serve frontend AFTER API ROUTES ---------
 app.use(express.static(path.join(__dirname, "../public")));

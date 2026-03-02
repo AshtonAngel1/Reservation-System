@@ -1,22 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>View Reservations</title>
+  <title>My Reservations</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h2>Upcoming Reservations</h2>
+  <h2>My Reservations</h2>
 
   <table border="1">
     <thead>
       <tr>
         <th>ID</th>
+        <th>Item Name</th>
         <th>Item Type</th>
-        <th>Item ID</th>
-        <th>Email</th>
         <th>Start</th>
         <th>End</th>
-        <th>Delete</th>
+        <th>Cancel</th>
       </tr>
     </thead>
     <tbody id="reservationTable"></tbody>
@@ -24,9 +23,14 @@
 
   <script>
     async function loadReservations() {
-      const response = await fetch("/reservations");
-      const reservations = await response.json();
+      const response = await fetch("/my-reservations");
 
+      if (!response.ok) {
+        alert("Please login first");
+        return;
+      }
+
+      const reservations = await response.json();
       const table = document.getElementById("reservationTable");
       table.innerHTML = "";
 
@@ -35,12 +39,15 @@
 
         row.innerHTML = `
           <td>${r.id}</td>
+          <td>${r.item_name}</td>
           <td>${r.item_type}</td>
-          <td>${r.item_id}</td>
-          <td>${r.user_email}</td>
           <td>${r.start_date}</td>
           <td>${r.end_date}</td>
-          <td><button onclick="deleteReservation(${r.id})">Delete</button></td>
+          <td>
+            <button onclick="deleteReservation(${r.id})">
+              Cancel
+            </button>
+          </td>
         `;
 
         table.appendChild(row);
