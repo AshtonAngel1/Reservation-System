@@ -4,12 +4,24 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const { body, validationResult } = require("express-validator");
 const path = require("path");
+const session = require("express-session");
 
 // Create app
 const app = express();
 
 // Parse JSON requests
 app.use(express.json());
+
+// SESSION MIDDLEWARE
+app.use(session({
+  secret: "super_secret_key_123",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false,   // keep false for localhost
+    httpOnly: true
+  }
+}));
 
 // --------- API ROUTES ---------
 
@@ -100,6 +112,10 @@ app.post("/login", async (req, res) => {
           });
         }
 
+        // SAVE SESSION
+        req.session.userId = user.id;
+        req.session.email = user.email;
+
         // Successful login
         return res.json({
           message: "Login successful"
@@ -112,6 +128,38 @@ app.post("/login", async (req, res) => {
     return res.status(500).json({ message: "Server error: " + err.message });
   }
 });
+
+//DASHBOARD STATS ROUTE
+app.get("/dashboard-stats", (req, res) => {
+
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not logged in" });
+  }
+
+  const userId = req.session.userId;
+
+  db.query(
+    "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
+    [userId],
+    (err, totalResult) => {
+      if (err) return res.status(500).json(err);
+
+      db.query(
+        "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
+        [userId],
+        (err, upcomingResult) => {
+          if (err) return res.status(500).json(err);
+
+          res.json({
+            total: totalResult[0].total,
+            upcoming: upcomingResult[0].upcoming
+          });
+        }
+      );
+    }
+  );
+});
+
 
 // Inventory
 app.get("/inventory", (req, res) => {
