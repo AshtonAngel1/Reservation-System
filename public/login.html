@@ -23,7 +23,7 @@
       <button type="submit">Login</button>
     </form>
 
-    <p>Don't have an account? <a href="register.html">Register</a></p>
+    <p>Don't have an account? <a href="/register.html">Register</a></p>
   </div>
 
   <script>
@@ -47,10 +47,10 @@
           return;
         }
 
-        if (data.role === "admin") {
-          window.location.href = "admin-dashboard.html";
+        if (data.is_admin) {
+          window.location.href = "/admin/inventory"; // routes to Inventory Until Admin Page is implemented
         } else {
-          window.location.href = "dashboard.html";
+          window.location.href = "/reserve"; 
         }
 
       } catch (err) {

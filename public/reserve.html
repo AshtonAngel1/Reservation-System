@@ -15,17 +15,16 @@
       <option value="person">Person</option>
     </select>
 
-    <label>Item ID:</label>
-    <input type="number" id="itemId" required>
-
-    <label>Your Email:</label>
-    <input type="email" id="userEmail" required>
+    <label>Select Item:</label>
+    <select id="itemSelect" required>
+      <option value="">Loading items...</option>
+    </select>
 
     <label>Start Date:</label>
-    <input type="date" id="startDate" required>
+    <input type="datetime-local" id="startDate" required>
 
     <label>End Date:</label>
-    <input type="date" id="endDate" required>
+    <input type="datetime-local" id="endDate" required>
 
     <button type="submit">Reserve</button>
   </form>
@@ -34,14 +33,44 @@
 
   <script>
     const form = document.getElementById("reservationForm");
+    const itemTypeSelect = document.getElementById("itemType");
+    const itemSelect = document.getElementById("itemSelect");
+
+    itemTypeSelect.addEventListener("change", loadItems);
+    document.getElementById("startDate").addEventListener("change", loadItems);
+    document.getElementById("endDate").addEventListener("change", loadItems);
+
+    async function loadItems() {
+      const type = itemTypeSelect.value;
+      const startDate = document.getElementById("startDate").value;
+      const endDate = document.getElementById("endDate").value;
+
+      const response = await fetch(`/inventory/available?type=${type}&start=${startDate}&end=${endDate}`);
+      const items = await response.json();
+
+      itemSelect.innerHTML = "";
+
+      if (items.length === 0) {
+        itemSelect.innerHTML = `<option value="">No items available</option>`;
+        return;
+      }
+
+      items.forEach(item => {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = `${item.name} (ID: ${item.id})`;
+        itemSelect.appendChild(option);
+      });
+    }
+
+    // Load default items on page load
+    loadItems();
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const reservation = {
-        item_type: document.getElementById("itemType").value,
         item_id: document.getElementById("itemId").value,
-        user_email: document.getElementById("userEmail").value,
         start_date: document.getElementById("startDate").value,
         end_date: document.getElementById("endDate").value
       };
@@ -62,6 +91,41 @@
         message.textContent = data.error || "Error creating reservation";
       }
     });
+
+    async function loadNavbar() {
+      const response = await fetch("/components/navbar.html");
+      const navbarHTML = await response.text();
+      document.body.insertAdjacentHTML("afterbegin", navbarHTML);
+
+      const sessionRes = await fetch("/session");
+      const sessionData = await sessionRes.json();
+
+      const authSection = document.getElementById("authSection");
+      const adminLink = document.getElementById("adminLink");
+
+      if (sessionData.loggedIn) {
+        authSection.innerHTML = `
+          ${sessionData.email}
+          <button onclick="logout()">Logout</button>
+        `;
+
+        if (sessionData.is_admin) {
+          adminLink.style.display = "inline";
+        }
+
+      } else {
+        authSection.innerHTML = `
+          <a href="/login.html" style="color:white;">Login</a>
+        `;
+      }
+    }
+
+    async function logout() {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/";
+    }
+
+    loadNavbar();
   </script>
 </body>
 </html>
