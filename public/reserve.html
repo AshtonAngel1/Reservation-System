@@ -62,6 +62,41 @@
         message.textContent = data.error || "Error creating reservation";
       }
     });
+
+    async function loadNavbar() {
+      const response = await fetch("/components/navbar.html");
+      const navbarHTML = await response.text();
+      document.body.insertAdjacentHTML("afterbegin", navbarHTML);
+
+      const sessionRes = await fetch("/session");
+      const sessionData = await sessionRes.json();
+
+      const authSection = document.getElementById("authSection");
+      const adminLink = document.getElementById("adminLink");
+
+      if (sessionData.loggedIn) {
+        authSection.innerHTML = `
+          ${sessionData.email}
+          <button onclick="logout()">Logout</button>
+        `;
+
+        if (sessionData.is_admin) {
+          adminLink.style.display = "inline";
+        }
+
+      } else {
+        authSection.innerHTML = `
+          <a href="/login.html" style="color:white;">Login</a>
+        `;
+      }
+    }
+
+    async function logout() {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/";
+    }
+
+    loadNavbar();
   </script>
 </body>
 </html>

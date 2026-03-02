@@ -23,7 +23,7 @@ app.use(session({
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
-    return res.status(401).json({ error: "Not authenticated" });
+    return res.status(401).json({ error: "You must be logged in" });
   }
   next();
 }
@@ -35,7 +35,27 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function preventLoggedInAccess(req, res, next) {
+  if (req.session.user) {
+    return res.redirect("/");
+  }
+  next();
+}
+
 // --------- API ROUTES ---------
+
+app.get("/session", (req, res) => {
+  if (!req.session.user) {
+    return res.json({ loggedIn: false });
+  }
+
+  res.json({
+    loggedIn: true,
+    is_admin: req.session.user.is_admin,
+    email: req.session.user.email
+  });
+});
+
 
 // Register
 app.post("/register", async (req, res) => {
@@ -85,7 +105,7 @@ app.post("/login", async (req, res) => {
 });
 
 // Inventory
-app.get("/inventory", async (req, res) => {
+app.get("/inventory", requireAdmin, async (req, res) => {
   try {
     const [items] = await db.query(`
       SELECT i.id, i.name, i.type,
@@ -107,8 +127,6 @@ app.get("/inventory", async (req, res) => {
     return res.status(500).json({ message: "Server error: " + err.message });
   }
 });
-
-
 
 
 // Rooms
@@ -355,9 +373,29 @@ app.delete("/admin/reservations/:id", requireAdmin, async (req, res) => {
   }
 });
 
+app.post("/logout", (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Could not log out" });
+    }
+
+    res.clearCookie("connect.sid");
+    res.json({ message: "Logout successful" });
+  });
+});
+
 // Admin page protection route
 app.get("/admin/view-reservations", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "../admin_views/view-reservation.html"));
+});
+
+app.get("/admin/inventory", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "../admin_views/inventory.html"));
+});
+
+app.get("/login", preventLoggedInAccess, (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/login.html"));
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
