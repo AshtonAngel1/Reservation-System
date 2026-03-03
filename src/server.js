@@ -4,6 +4,7 @@ const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
+const profileRoutes = require("./utils/profileRoutes");
 
 // Create app
 const app = express();
@@ -20,6 +21,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: false } // Set to true if using HTTPS
 }));
+
+// Mount profile routes
+app.use("/profile", profileRoutes);
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
