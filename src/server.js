@@ -129,6 +129,38 @@ app.get("/inventory", requireAdmin, async (req, res) => {
 });
 
 
+//DASHBOARD STATS ROUTE
+app.get("/dashboard-stats", (req, res) => {
+
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not logged in" });
+  }
+
+  const userId = req.session.userId;
+
+  db.query(
+    "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
+    [userId],
+    (err, totalResult) => {
+      if (err) return res.status(500).json(err);
+
+      db.query(
+        "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
+        [userId],
+        (err, upcomingResult) => {
+          if (err) return res.status(500).json(err);
+
+          res.json({
+            total: totalResult[0].total,
+            upcoming: upcomingResult[0].upcoming
+          });
+        }
+      );
+    }
+  );
+});
+
+
 app.get("/inventory/available", requireAuth, async (req, res) => {
   try {
     const { type, start, end } = req.query;
