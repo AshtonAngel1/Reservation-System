@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../db"); // adjust path if your db.js is elsewhere
+const db = require("../db"); 
 
 // Get user profile
 router.get("/", async (req, res) => {
