@@ -4,9 +4,12 @@ const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
-
+const profileRoutes = require("./profile/profileRoutes");
 // Create app
 const app = express();
+
+// Use routes
+app.use("/profile", profileRoutes);
 
 // Parse JSON requests
 app.use(express.json());
@@ -20,6 +23,14 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: false } // Set to true if using HTTPS
 }));
+
+// Lock HTML pages behind login
+function requireLoginPage(req, res, next) {
+  if (!req.session.user) {
+    return res.redirect("/login.html");
+  }
+  next();
+}
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
@@ -332,7 +343,7 @@ app.get("/my-reservations", requireAuth, async (req, res) => {
   try {
 
     const [reservations] = await db.query(`
-      SELECT 
+      SELECT
         r.id,
         i.name AS item_name,
         i.type AS item_type,
@@ -403,6 +414,82 @@ app.post("/reservations", requireAuth, async (req, res) => {
   }
 });
 
+//Edit Reservation route
+app.put("/reservations/:id", requireAuth, async (req, res) => {
+  try {
+    const reservationId = req.params.id;
+    const userId = req.session.user.id;
+    const { item_id, quantity, start_date, end_date } = req.body;
+
+    const errors = [];
+
+    // Basic validation
+    if (!item_id || !quantity || !start_date || !end_date) {
+      errors.push("All fields are required.");
+    }
+
+    if (quantity <= 0) {
+      errors.push("Quantity must be at least 1.");
+    }
+
+    const today = new Date();
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+
+    if (start < today) {
+      errors.push("Start date cannot be in the past.");
+    }
+
+    if (end < start) {
+      errors.push("End date must be after start date.");
+    }
+
+    // Make sure reservation belongs to this user
+    const [existing] = await db.query(
+      "SELECT * FROM reservations WHERE id = ? AND user_id = ?",
+      [reservationId, userId]
+    );
+
+    if (existing.length === 0) {
+      return res.status(403).json({ message: "Not authorized." });
+    }
+
+    // Check item availability
+    const [item] = await db.query(
+      "SELECT total_quantity FROM items WHERE id = ?",
+      [item_id]
+    );
+
+    if (item.length === 0) {
+      errors.push("Item does not exist.");
+    } else {
+      if (quantity > item[0].total_quantity) {
+        errors.push(
+          `Only ${item[0].total_quantity} available in inventory.`
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+
+    // All good — update
+    await db.query(
+      `UPDATE reservations 
+       SET item_id = ?, quantity = ?, start_date = ?, end_date = ?
+       WHERE id = ?`,
+      [item_id, quantity, start_date, end_date, reservationId]
+    );
+
+    res.json({ message: "Reservation updated successfully." });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
 app.delete("/reservations/:id", requireAuth, async (req, res) => {
   try {
     
@@ -462,6 +549,8 @@ app.get("/my_reservations_page", requireAuth, (req, res) => {
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
+
+// Serve frontend AFTER
 app.use(express.static(path.join(__dirname, "../public")));
 
 app.get("/", (req,res)=>{
