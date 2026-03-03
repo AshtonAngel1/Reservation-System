@@ -130,7 +130,7 @@ app.get("/inventory", requireAdmin, async (req, res) => {
 
 
 //DASHBOARD STATS ROUTE
-app.get("/dashboard-stats", (req, res) => {
+app.get("/dashboard-stats", requireAuth, (req, res) => {
 
   if (!req.session.user.id) {
     return res.status(401).json({ error: "Not logged in" });
@@ -463,7 +463,7 @@ app.get("/reserve", requireAuth, (req, res) => {
 });
 
 app.get("/my_reservations_page", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "../protected/userReservation.html"));
+  res.sendFile(path.join(__dirname, "../protected/userReservations.html"));
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
