@@ -4,9 +4,12 @@ const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
-
+const profileRoutes = require("./profile/profileRoutes");
 // Create app
 const app = express();
+
+// Use routes
+app.use("/profile", profileRoutes);
 
 // Parse JSON requests
 app.use(express.json());
@@ -20,6 +23,14 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: false } // Set to true if using HTTPS
 }));
+
+// Lock HTML pages behind login
+function requireLoginPage(req, res, next) {
+  if (!req.session.user) {
+    return res.redirect("/login.html");
+  }
+  next();
+}
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
@@ -534,6 +545,8 @@ app.get("/reserve", requireAuth, (req, res) => {
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
+
+// Serve frontend AFTER
 app.use(express.static(path.join(__dirname, "../public")));
 
 app.get("/", (req,res)=>{
