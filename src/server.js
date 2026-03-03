@@ -130,34 +130,29 @@ app.get("/inventory", requireAdmin, async (req, res) => {
 
 
 //DASHBOARD STATS ROUTE
-app.get("/dashboard-stats", requireAuth, (req, res) => {
+app.get("/dashboard-stats", requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
 
-  if (!req.session.user.id) {
-    return res.status(401).json({ error: "Not logged in" });
+    const [totalResult] = await db.query(
+      "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
+      [userId]
+    );
+
+    const [upcomingResult] = await db.query(
+      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
+      [userId]
+    );
+
+    res.json({
+      total: totalResult[0].total,
+      upcoming: upcomingResult[0].upcoming
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
-
-  const userId = req.session.user.id;
-
-  db.query(
-    "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
-    [userId],
-    (err, totalResult) => {
-      if (err) return res.status(500).json(err);
-
-      db.query(
-        "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
-        [userId],
-        (err, upcomingResult) => {
-          if (err) return res.status(500).json(err);
-
-          res.json({
-            total: totalResult[0].total,
-            upcoming: upcomingResult[0].upcoming
-          });
-        }
-      );
-    }
-  );
 });
 
 
