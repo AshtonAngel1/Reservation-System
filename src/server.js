@@ -3,7 +3,7 @@ const db = require('./db');
 const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
-const ReservationImpl = require('./reservation/ReservationImpl');
+const ReservationImpl = require('./reservation/reservationImpl');
 
 // Create app
 const app = express();
