@@ -56,8 +56,7 @@
         <tr>
           <th>ID</th>
           <th>Name</th>
-          <th>Type</th>
-          <th>Condition</th>
+          <th>Resource Type</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -76,11 +75,6 @@
       <input type="text" id="resourceType">
     </div>
 
-    <div class="form-row">
-      <label>Condition</label>
-      <input type="text" id="resourceCondition">
-    </div>
-
     <button id="addResourceBtn">Add Resource</button>
   </div>
 
@@ -92,9 +86,9 @@
       <thead>
         <tr>
           <th>ID</th>
-          <th>Name</th>
+          <th>First Name</th>
+          <th>Last Name</th>
           <th>Role</th>
-          <th>Availability</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -104,8 +98,13 @@
     <h3>Add Person</h3>
 
     <div class="form-row">
-      <label>Name</label>
+      <label>First Name</label>
       <input type="text" id="personName">
+    </div>
+
+    <div class="form-row">
+      <label>Last Name</label>
+      <input type="text" id="personLastName">
     </div>
 
     <div class="form-row">
@@ -113,17 +112,47 @@
       <input type="text" id="personRole">
     </div>
 
-    <div class="form-row">
-      <label>Availability</label>
-      <input type="text" id="personAvailability">
-    </div>
-
     <button id="addPersonBtn">Add Person</button>
   </div>
 
 </div>
 
-<script src="inventory.js"></script>
+<script src="inventory.js">
+  async function loadNavbar() {
+      const response = await fetch("/components/navbar.html");
+      const navbarHTML = await response.text();
+      document.body.insertAdjacentHTML("afterbegin", navbarHTML);
+
+      const sessionRes = await fetch("/session");
+      const sessionData = await sessionRes.json();
+
+      const authSection = document.getElementById("authSection");
+      const adminLink = document.getElementById("adminLink");
+
+      if (sessionData.loggedIn) {
+        authSection.innerHTML = `
+          ${sessionData.email}
+          <button onclick="logout()">Logout</button>
+        `;
+
+        if (sessionData.is_admin) {
+          adminLink.style.display = "inline";
+        }
+
+      } else {
+        authSection.innerHTML = `
+          <a href="/login.html" style="color:white;">Login</a>
+        `;
+      }
+    }
+
+    async function logout() {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/";
+    }
+
+    loadNavbar();
+</script>
 </body>
 </html>
 

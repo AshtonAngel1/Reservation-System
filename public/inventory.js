@@ -9,45 +9,33 @@ function createDeleteButton(type, id) {
   const btn = document.createElement("button");
   btn.textContent = "Delete";
   btn.addEventListener("click", async () => {
-    await fetch(`/${type}/${id}`, { method: "DELETE" });
+    await fetch(`/items/${id}`, { method: "DELETE" });
     loadTables();
   });
   return btn;
 }
 
+
 // --- LOAD TABLES ---
 async function loadTables() {
-  const { rooms, resources, people } = await fetchInventory();
+  const items = await fetchInventory();
+
+  const rooms = items.filter(i => i.type === "room");
+  const resources = items.filter(i => i.type === "resource");
+  const people = items.filter(i => i.type === "person");
 
   // Rooms
   const roomsTbody = document.querySelector("#roomsTable tbody");
   roomsTbody.innerHTML = "";
+
   rooms.forEach(r => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${r.id}</td>
       <td>${r.name}</td>
-      <td>${r.capacity}</td>
-      <td>${r.location}</td>
+      <td>${r.capacity || ""}</td>
+      <td>${r.location || ""}</td>
     `;
-    const actionTd = document.createElement("td");
-    actionTd.appendChild(createDeleteButton("rooms", r.id));
-    tr.appendChild(actionTd);
-    roomsTbody.appendChild(tr);
-  });
-  return btn;
-}
-
-// --- LOAD TABLES ---
-async function loadTables() {
-  const { rooms, resources, people } = await fetchInventory();
-
-  // Rooms
-  const roomsTbody = document.querySelector("#roomsTable tbody");
-  roomsTbody.innerHTML = "";
-  rooms.forEach(r => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.id}</td><td>${r.name}</td><td>${r.capacity}</td><td>${r.location}</td>`;
     const tdAction = document.createElement("td");
     tdAction.appendChild(createDeleteButton("rooms", r.id));
     tr.appendChild(tdAction);
@@ -57,9 +45,14 @@ async function loadTables() {
   // Resources
   const resourcesTbody = document.querySelector("#resourcesTable tbody");
   resourcesTbody.innerHTML = "";
+
   resources.forEach(r => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.id}</td><td>${r.name}</td><td>${r.type}</td><td>${r.status}</td>`;
+    tr.innerHTML = `
+      <td>${r.id}</td>
+      <td>${r.name}</td>
+      <td>${r.resource_type || ""}</td>
+    `;
     const tdAction = document.createElement("td");
     tdAction.appendChild(createDeleteButton("resources", r.id));
     tr.appendChild(tdAction);
@@ -69,9 +62,14 @@ async function loadTables() {
   // People
   const peopleTbody = document.querySelector("#peopleTable tbody");
   peopleTbody.innerHTML = "";
+
   people.forEach(p => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p.id}</td><td>${p.name}</td><td>${p.role}</td><td>${p.availability_notes}</td>`;
+    tr.innerHTML = `
+      <td>${p.id}</td>
+      <td>${p.first_name || ""} ${p.last_name || ""}</td>
+      <td>${p.role || ""}</td>
+    `;
     const tdAction = document.createElement("td");
     tdAction.appendChild(createDeleteButton("people", p.id));
     tr.appendChild(tdAction);
@@ -88,32 +86,40 @@ document.getElementById("addRoomBtn").addEventListener("click", async () => {
   if (!name || !location) return alert("Name and Location cannot be empty!");
   if (isNaN(capacity) || capacity <= 0) return alert("Capacity must be a positive number!");
 
-  const id = Math.floor(Math.random() * 10000);
-  await fetch("/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, name, capacity, location }) });
+  await fetch("rooms", { 
+    method: "POST", 
+    headers: { "Content-Type": "application/json" }, 
+    body: JSON.stringify({ name, capacity, location }) 
+  });
+
   loadTables();
 });
 
 document.getElementById("addResourceBtn").addEventListener("click", async () => {
   const name = document.getElementById("resourceName").value.trim();
-  const type = document.getElementById("resourceType").value.trim();
-  const status = document.getElementById("resourceCondition").value.trim();
+  const resource_type = document.getElementById("resourceType").value.trim();
 
-  if (!name || !type || !status) return alert("All resource fields are required!");
+  if (!name || !resource_type) return alert("All resource fields are required!");
 
-  const id = Math.floor(Math.random() * 10000);
-  await fetch("/resources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, name, type, status }) });
+  await fetch("/resources", { 
+    method: "POST", headers: { "Content-Type": "application/json" }, 
+    body: JSON.stringify({ name, resource_type}) });
+
   loadTables();
 });
 
 document.getElementById("addPersonBtn").addEventListener("click", async () => {
-  const name = document.getElementById("personName").value.trim();
+  const first_name = document.getElementById("personName").value.trim();
+  const last_name = document.getElementById("personLastName").value.trim();
   const role = document.getElementById("personRole").value.trim();
-  const availability_notes = document.getElementById("personAvailability").value.trim();
 
-  if (!name || !role || !availability_notes) return alert("All person fields are required!");
+  if (!first_name || !last_name || !role) return alert("All person fields are required!");
 
-  const id = Math.floor(Math.random() * 10000);
-  await fetch("/people", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, name, role, availability_notes }) });
+  await fetch("/people", { 
+    method: "POST", headers: { "Content-Type": "application/json" }, 
+    body: JSON.stringify({ first_name, last_name, role }) 
+  });
+
   loadTables();
 });
 
