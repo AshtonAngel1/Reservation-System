@@ -9,7 +9,7 @@ class userImpl {
     //bio;
     //profile_picture;
     
-    constructor(id = null, email, password) {
+    constructor(email, password, id = null) {
         this.#id = id;
         //this.username = username;
         //this.bio = bio;
