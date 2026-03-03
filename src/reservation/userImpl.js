@@ -20,10 +20,7 @@ class userImpl {
 
 
     validateNewUser() {
-        userUtils.noFieldIsEmpty({
-            email: this.#email,
-            password: this.#password
-        });
+        userUtils.noFieldIsEmpty(this.#email, this.#password);
 
         if (!userUtils.validateNewEmail(this.#email)) {
                 throw new Error("Invalid email format");
