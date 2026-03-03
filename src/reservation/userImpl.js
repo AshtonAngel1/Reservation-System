@@ -20,7 +20,10 @@ class userImpl {
 
 
     validateNewUser() {
-        userUtils.noFieldIsEmpty(this);
+        userUtils.noFieldIsEmpty({
+            email: this.#email,
+            password: this.#password
+        });
 
         if (!userUtils.validateNewEmail(this.#email)) {
                 throw new Error("Invalid email format");
@@ -35,7 +38,10 @@ class userImpl {
 
 
     async validateUserLogIn() {
-        userUtils.noFieldIsEmpty(this);
+        userUtils.noFieldIsEmpty({
+            email: this.#email,
+            password: this.#password
+        });
         const [userResults] = await db.query(
             "SELECT id, email, password, is_admin FROM users WHERE email = ?",
             [this.#email]
