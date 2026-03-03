@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Edit Reservation</title>
+</head>
+<body>
+
+<h2>Edit Reservation</h2>
+
+<div id="errorBox" style="color:red;"></div>
+
+<form id="editForm">
+  <input type="hidden" id="reservationId">
+
+  <label>Item:</label>
+  <select id="item_id"></select>
+  <br><br>
+
+  <label>Quantity:</label>
+  <input type="number" id="quantity" min="1">
+  <br><br>
+
+  <label>Start Date:</label>
+  <input type="date" id="start_date">
+  <br><br>
+
+  <label>End Date:</label>
+  <input type="date" id="end_date">
+  <br><br>
+
+  <button type="submit">Update Reservation</button>
+</form>
+
+<script>
+
+const urlParams = new URLSearchParams(window.location.search);
+const reservationId = urlParams.get("id");
+document.getElementById("reservationId").value = reservationId;
+
+// Load items
+async function loadItems() {
+  const res = await fetch("/inventory");
+  const items = await res.json();
+
+  const select = document.getElementById("item_id");
+  items.forEach(item => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.name} (Available: ${item.total_quantity})`;
+    select.appendChild(option);
+  });
+}
+
+loadItems();
+
+document.getElementById("editForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const item_id = document.getElementById("item_id").value;
+  const quantity = document.getElementById("quantity").value;
+  const start_date = document.getElementById("start_date").value;
+  const end_date = document.getElementById("end_date").value;
+
+  const res = await fetch(`/reservations/${reservationId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_id, quantity, start_date, end_date })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    const errorBox = document.getElementById("errorBox");
+    errorBox.innerHTML = "";
+    data.errors.forEach(err => {
+      const p = document.createElement("p");
+      p.textContent = err;
+      errorBox.appendChild(p);
+    });
+  } else {
+    alert("Reservation updated!");
+    window.location.href = "my-reservations.html";
+  }
+});
+
+</script>
+
+</body>
+</html>
