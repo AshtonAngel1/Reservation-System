@@ -22,6 +22,7 @@
 
       <button type="submit">Login</button>
     </form>
+    <div id="errorMessage" style="color: red; display: none;"></div>
 
     <p>Don't have an account? <a href="/register.html">Register</a></p>
   </div>
@@ -43,7 +44,10 @@
         const data = await res.json();
 
         if (!res.ok) {
-          alert(data.message || "Login failed");
+          const errorDiv = document.getElementById("errorMessage");
+          errorDiv.textContent = data.error || "Invalid email or password.";
+          errorDiv.style.display = "block";
+          document.getElementById("password").value = "";
           return;
         }
 

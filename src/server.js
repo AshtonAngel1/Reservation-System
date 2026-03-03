@@ -141,29 +141,29 @@ app.get("/inventory", requireAdmin, async (req, res) => {
 
 
 //DASHBOARD STATS ROUTE
-app.get("/dashboard-stats", requireAuth, (req, res) => {
-  const userId = req.session.user.id;
+app.get("/dashboard-stats", requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
 
-  db.query(
-    "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
-    [userId],
-    (err, totalResult) => {
-      if (err) return res.status(500).json(err);
+    const [totalResult] = await db.query(
+      "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
+      [userId]
+    );
 
-      db.query(
-        "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
-        [userId],
-        (err, upcomingResult) => {
-          if (err) return res.status(500).json(err);
+    const [upcomingResult] = await db.query(
+      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
+      [userId]
+    );
 
-          res.json({
-            total: totalResult[0].total,
-            upcoming: upcomingResult[0].upcoming
-          });
-        }
-      );
-    }
-  );
+    res.json({
+      total: totalResult[0].total,
+      upcoming: upcomingResult[0].upcoming
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 
@@ -541,7 +541,11 @@ app.get("/login", preventLoggedInAccess, (req, res) => {
 });
 
 app.get("/reserve", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/reserve.html"));
+  res.sendFile(path.join(__dirname, "../protected/reserve.html"));
+});
+
+app.get("/my_reservations_page", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/userReservations.html"));
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
