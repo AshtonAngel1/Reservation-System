@@ -6,45 +6,62 @@
 </head>
 
 <body>
- <div class="container">
-  <h1>Login</h1>
+  <div class="container">
+    <h1>Login</h1>
 
-  <form id="loginForm">
-    <div class="form-row">
-      <label for="email">Email:</label>
-       <input type="email" id="email" required><br>
-    </div>
-    <div class="form-row">
-      <label for="password">Password:</label>
-      <input type="password" id="password" required><br>
-    </div>
+    <form id="loginForm">
+      <div class="form-row">
+        <label for="email">Email:</label>
+        <input type="email" id="email" required>
+      </div>
 
-    <button type="submit">Login</button> 
-  </form>
-  <p>Don't have an account? <a href="register.html">Register</a></p>
- </div>
+      <div class="form-row">
+        <label for="password">Password:</label>
+        <input type="password" id="password" required>
+      </div>
+
+      <button type="submit">Login</button>
+    </form>
+    <div id="errorMessage" style="color: red; display: none;"></div>
+
+    <p>Don't have an account? <a href="/register.html">Register</a></p>
+  </div>
 
   <script>
-    document.getElementById("loginForm").addEventListener("submit", async (e)=>{
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
-    
+
       try {
-        const res = await fetch("/login",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({email,password})
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
         });
-    
+
         const data = await res.json();
-        alert(data.message || JSON.stringify(data));
-        if(res.ok) window.location.href = "inventory.html";
-      } catch(err){
-        alert("Error: "+err);
+
+        if (!res.ok) {
+          const errorDiv = document.getElementById("errorMessage");
+          errorDiv.textContent = data.error || "Invalid email or password.";
+          errorDiv.style.display = "block";
+          document.getElementById("password").value = "";
+          return;
+        }
+
+        if (data.is_admin) {
+          window.location.href = "/admin/inventory"; // routes to Inventory Until Admin Page is implemented
+        } else {
+          window.location.href = "/reserve"; 
+        }
+
+      } catch (err) {
+        alert("Error: " + err.message);
       }
     });
-    </script>
-    
+  </script>
+
 </body>
 </html>

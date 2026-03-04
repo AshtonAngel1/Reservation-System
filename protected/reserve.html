@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Create Reservation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h2>Create Reservation</h2>
+
+  <form id="reservationForm">
+    <label>Item Type:</label>
+    <select id="itemType" required>
+      <option value="room">Room</option>
+      <option value="resource">Resource</option>
+      <option value="person">Person</option>
+    </select>
+
+    <label>Select Item:</label>
+    <select id="itemSelect" required>
+      <option value="">Loading items...</option>
+    </select>
+
+    <label>Start Date:</label>
+    <input type="datetime-local" id="startDate" required>
+
+    <label>End Date:</label>
+    <input type="datetime-local" id="endDate" required>
+
+    <button type="submit">Reserve</button>
+  </form>
+
+  <p id="message"></p>
+
+  <script>
+    const form = document.getElementById("reservationForm");
+    const itemTypeSelect = document.getElementById("itemType");
+    const itemSelect = document.getElementById("itemSelect");
+
+    itemTypeSelect.addEventListener("change", loadItems);
+    document.getElementById("startDate").addEventListener("change", loadItems);
+    document.getElementById("endDate").addEventListener("change", loadItems);
+
+    async function loadItems() {
+      const type = itemTypeSelect.value;
+      const startDate = document.getElementById("startDate").value;
+      const endDate = document.getElementById("endDate").value;
+
+      const response = await fetch(`/inventory/available?type=${type}&start=${startDate}&end=${endDate}`);
+      const items = await response.json();
+
+      itemSelect.innerHTML = "";
+
+      if (items.length === 0) {
+        itemSelect.innerHTML = `<option value="">No items available</option>`;
+        return;
+      }
+
+      items.forEach(item => {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = `${item.name} (ID: ${item.id})`;
+        itemSelect.appendChild(option);
+      });
+    }
+
+    // Load default items on page load
+    loadItems();
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const reservation = {
+        item_id: document.getElementById("itemId").value,
+        start_date: document.getElementById("startDate").value,
+        end_date: document.getElementById("endDate").value
+      };
+
+      const response = await fetch("/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reservation)
+      });
+
+      const data = await response.json();
+      const message = document.getElementById("message");
+
+      if (response.ok) {
+        message.textContent = "Reservation created successfully!";
+        form.reset();
+      } else {
+        message.textContent = data.error || "Error creating reservation";
+      }
+    });
+
+    async function loadNavbar() {
+      const response = await fetch("/components/navbar.html");
+      const navbarHTML = await response.text();
+      document.body.insertAdjacentHTML("afterbegin", navbarHTML);
+
+      const sessionRes = await fetch("/session");
+      const sessionData = await sessionRes.json();
+
+      const authSection = document.getElementById("authSection");
+      const adminLink = document.getElementById("adminLink");
+
+      if (sessionData.loggedIn) {
+        authSection.innerHTML = `
+          ${sessionData.email}
+          <button onclick="logout()">Logout</button>
+        `;
+
+        if (sessionData.is_admin) {
+          adminLink.style.display = "inline";
+        }
+
+      } else {
+        authSection.innerHTML = `
+          <a href="/login.html" style="color:white;">Login</a>
+        `;
+      }
+    }
+
+    async function logout() {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/";
+    }
+
+    loadNavbar();
+  </script>
+</body>
+</html>
+

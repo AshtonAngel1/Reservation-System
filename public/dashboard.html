@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+  <div class="dashboard-wrapper">
+    <h1>Welcome to Your Dashboard</h1>
+    <p class="dashboard-subtitle">
+      Here’s a quick overview of your reservations.
+    </p>
+
+    <div class="stats-container">
+      <div class="stat-box">
+        <h3>Total Reservations</h3>
+        <div class="stat-number" id="totalReservations">--</div>
+      </div>
+
+      <div class="stat-box">
+        <h3>Upcoming Reservations</h3>
+        <div class="stat-number" id="upcomingReservations">--</div>
+      </div>
+    </div>
+
+    <div class="dashboard-actions">
+      <a href="profile.html" class="btn-link">View Profile</a>
+      <a href="make-reservation.html" class="btn-link">Make Reservation</a>
+      <a href="edit-reservation.html" class="btn-link">Edit Reservation</a>
+    </div>
+  </div>
+
+  <script>
+    async function loadDashboardStats() {
+      try {
+        const res = await fetch("/dashboard-stats");
+
+        if (res.status === 401) {
+          // Not logged in → send back to login
+          window.location.href = "login.html";
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error("Failed to load stats");
+        }
+
+        const data = await res.json();
+
+        document.getElementById("totalReservations").textContent =
+          data.total ?? 0;
+
+        document.getElementById("upcomingReservations").textContent =
+          data.upcoming ?? 0;
+
+      } catch (err) {
+        console.error("Dashboard error:", err);
+        document.getElementById("totalReservations").textContent = "0";
+        document.getElementById("upcomingReservations").textContent = "0";
+      }
+    }
+
+    // Load stats when page opens
+    loadDashboardStats();
+  </script>
+
+</body>
+</html>

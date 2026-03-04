@@ -1,9 +1,9 @@
 // Import libraries
 const db = require('./db');
 const express = require("express");
-const bcrypt = require("bcrypt");
-const { body, validationResult } = require("express-validator");
 const path = require("path");
+const userImpl = require('./reservation/userImpl');
+const ReservationImpl = require('./reservation/reservationImpl');
 
 // Create app
 const app = express();
@@ -11,58 +11,73 @@ const app = express();
 // Parse JSON requests
 app.use(express.json());
 
+// Session Configuration
+const session = require("express-session");
+
+app.use(session({
+  secret: "supersecretkey",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set to true if using HTTPS
+}));
+
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "You must be logged in" });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session.user || !req.session.user.is_admin) {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
+}
+
+function preventLoggedInAccess(req, res, next) {
+  if (req.session.user) {
+    return res.redirect("/");
+  }
+  next();
+}
+
 // --------- API ROUTES ---------
 
+app.get("/session", (req, res) => {
+  if (!req.session.user) {
+    return res.json({ loggedIn: false });
+  }
+
+  res.json({
+    loggedIn: true,
+    is_admin: req.session.user.is_admin,
+    email: req.session.user.email
+  });
+});
+
+
 // Register
-app.post("/register",
-  body("email")
-    .isEmail().withMessage("Email must be valid")
-    .matches(/\.(com|org|edu|gov)$/i).withMessage("Email must end with .com/.org/.edu/.gov"),
-  body("password")
-    .isLength({ min: 8 }).withMessage("Password must be at least 8 characters")
-    .matches(/[a-zA-Z]/).withMessage("Password must include a letter")
-    .matches(/[0-9]/).withMessage("Password must include a number")
-    .matches(/[@$!%*?&]/).withMessage("Password must include a special character (@$!%*?&)"),
-  async (req, res) => {
-    try {
-      console.log("REQ BODY:", req.body);
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        console.log("VALIDATION ERRORS:", errors.array());
-        return res.status(400).json({ 
-          errors: errors.array().map(e => e.msg) 
-        });
-      }
+app.post("/register", async (req, res) => {
+  try {    
 
-      const { email, password } = req.body;
+    const { email, password } = req.body;
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 10);
+    const user = new userImpl(email, password);
 
-      // Insert into DB, mysql checks duplicates
-      db.query(
-        "INSERT INTO users (email, passwordHash) VALUES (?, ?)",
-        [email, passwordHash],
-        (err, result) => {
-          if (err) {
-            if (err.code === 'ER_DUP_ENTRY') {
-              return res.status(400).json({ 
-                errors: ["User already Exists"] 
-              });
-            }
-            return res.status(500).json(err);
-          }
+    await user.registerUser();
 
-          return res.status(200).json({ 
-            message: "User registered successfully" 
-          });
-        }
-      );
+    return res.status(200).json({
+      message: "User registered successfully"
+    });
 
-    } catch(err) {
-      console.error(err);
-      return res.status(500).json({ errors: ["Server error: " + err.message] });
-    }
+  } catch(err) {
+
+    console.error(err);
+    return res.status(400).json({ 
+      errors: [err.message] 
+    });
+  }
 });
 
 // Login
@@ -70,271 +85,381 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ 
-        message: "Email and password are required" }
-      );
-    }
+    const user = new userImpl(email, password);
 
-    // Get User from DB:
-    db.query("SELECT * FROM users WHERE email = ?", 
-      [email], 
-      async (err, results) => {
-        if (err) return res.status(500).json(err);
+    const loggedInUser = await user.validateUserLogIn();
 
-        // Check if User Exists
-        if (results.length === 0) {
-          return res.status(400).json({ 
-            message: "Invalid email or password" 
-          });
-        }
+    // Set session variables for user:
+    req.session.user = loggedInUser;
 
-        const user = results[0];
-
-        // Compare password
-        const match = await bcrypt.compare(password, user.passwordHash);
-
-        if (!match) {
-          return res.status(400).json({
-            message: "Invalid email or password"
-          });
-        }
-
-        // Successful login
-        return res.json({
-          message: "Login successful"
-        });
-      }
-    );
+    return res.json({
+      message: "Login successful"
+    });
 
   } catch(err) {
+    console.error(err);
+    return res.status(401).json({ 
+      message: err.message 
+    });
+  }
+});
+
+// Inventory
+app.get("/inventory", requireAdmin, async (req, res) => {
+  try {
+    const [items] = await db.query(`
+      SELECT i.id, i.name, i.type,
+             r.capacity, r.location,
+             p.first_name, p.last_name, p.role,
+             rs.resource_type
+      FROM items i
+      LEFT JOIN rooms r ON i.id = r.item_id
+      LEFT JOIN people p ON i.id = p.item_id
+      LEFT JOIN resources rs ON i.id = rs.item_id
+      WHERE i.active = TRUE
+    `);
+    
+
+    res.json({ items });
+
+  } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error: " + err.message });
   }
 });
 
-// Inventory
-app.get("/inventory", (req, res) => {
-  db.query("SELECT * FROM rooms", (err, rooms) => {
-    if (err) return res.status(500).json(err);
 
-    db.query("SELECT * FROM resources", (err, resources) => {
-      if (err) return res.status(500).json(err);
+//DASHBOARD STATS ROUTE
+app.get("/dashboard-stats", requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
 
-      db.query("SELECT * FROM people", (err, people) => {
-        if (err) return res.status(500).json(err);
-  
-        res.json({ rooms, resources, people });
-      });
+    const [totalResult] = await db.query(
+      "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
+      [userId]
+    );
+
+    const [upcomingResult] = await db.query(
+      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
+      [userId]
+    );
+
+    res.json({
+      total: totalResult[0].total,
+      upcoming: upcomingResult[0].upcoming
     });
-  });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 
+app.get("/inventory/available", requireAuth, async (req, res) => {
+  try {
+    const { type, start, end } = req.query;
+
+    if (!type || !start || !end) {
+      return res.status(400).json({ error: "Missing required parameters" });
+    }
+
+    const sql = `
+      SELECT i.id, i.name, i.type
+      FROM items i
+      WHERE i.type = ?
+      AND i.active = TRUE
+      AND i.id NOT IN (
+        SELECT r.item_id
+        FROM reservations r
+        WHERE r.start_date < ?
+        AND r.end_date > ?
+      )
+    `;
+
+    const [rows] = await db.execute(sql, [type, end, start]);
+
+    res.json(rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 
 // Rooms
-app.post("/rooms", (req, res) => {
-  let { name, capacity, location } = req.body;
+app.post("/rooms", requireAdmin, async (req, res) => {
+  try {
+    let { name, capacity, location } = req.body;
 
-  // Trim strings
-  name = name?.trim();
-  location = location?.trim();
+    // Trim strings
+    name = name?.trim();
+    location = location?.trim();
 
-  // Validation
-  if (!name || !location) {
-    return res.status(400).json({ error: "Name and location are required" });
-  }
-
-  if (!Number.isInteger(capacity) || capacity <= 0) {
-    return res.status(400).json({ error: "Capacity must be a positive integer" });
-  }
-
-  // New DB version:
-
-  db.query(
-    "INSERT INTO rooms (name, capacity, location) VALUES (?, ?, ?)",
-    [name, capacity, location],
-    (err, result) => {
-      if (err) return res.status(500).json(err);
-      res.status(201).json({ id: result.insertId });
+    // Validation
+    if (!name || !location) {
+      return res.status(400).json({ error: "Name and location are required" });
     }
-  );
+
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      return res.status(400).json({ error: "Capacity must be a positive integer" });
+    }
+
+    const [result] = await db.query(
+      "INSERT INTO items (name, type) VALUES (?, 'room')",
+      [name]
+    );
+
+    const itemId = result.insertId;
+
+    await db.query(
+      "INSERT INTO rooms (item_id, capacity, location) VALUES (?, ?, ?)",
+      [itemId, capacity, location]
+    );
+
+    res.status(201).json({ id: itemId });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
 
 });
-app.delete("/rooms/:id",(req,res)=>{
+app.delete("/rooms/:id", requireAdmin, async (req,res)=>{
+  try {
+    await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
+    res.json({ message: "Room Deleted" });
 
-  // New DB Delete Version:
-  db.query("DELETE FROM rooms WHERE id = ?", 
-    [req.params.id], 
-    (err) => {
-      if (err) return res.status(500).json(err);
-      res.json({ message: "Room Deleted" });
-    }
-  );
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
 });
 
 // Resources
-app.post("/resources", (req, res) => {
-  let { name, type, condition, quantity } = req.body;
+app.post("/resources", requireAdmin, async (req, res) => {
+  try {
+    let { name, resource_type} = req.body;
 
-  name = name?.trim();
-  type = type?.trim();
-  condition = condition?.trim();
-  quantity = Number(quantity);
+    name = name?.trim();
+    resource_type = resource_type?.trim();
 
-  if (!name || !type || !condition) {
-    return res.status(400).json({ error: "All fields required" });
-  }
-
-  if (!Number.isInteger(quantity) || quantity <= 0) {
-    return res.status(400).json({ error: "Quantity must be positive" });
-  }
-
-  db.query(
-    "INSERT INTO resources (name, type, status, quantity) VALUES (?, ?, ?, ?)",
-    [name, type, condition, quantity],
-    (err, result) => {
-      if (err) return res.status(500).json(err);
-      res.status(201).json({ id: result.insertId });
+    if (!name || !resource_type) {
+      return res.status(400).json({ error: "All fields required" });
     }
-  );
+
+    const [result] = await db.query(
+      "INSERT INTO items (name, type) VALUES (?, 'resource')",
+      [name]
+    );
+
+    const itemId = result.insertId;
+
+    await db.query(
+      "INSERT INTO resources (item_id, resource_type) VALUES (?, ?)",
+      [itemId, resource_type]
+    );
+
+    res.status(201).json({ id: itemId });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
 });
 
 
-app.delete("/resources/:id",(req,res)=>{
-  // New DB Delete Version:
-  db.query("DELETE FROM resources WHERE id = ?", 
-    [req.params.id], 
-    (err) => {
-      if (err) return res.status(500).json(err);
-      res.json({ message: "Resource Deleted" });
-    }
-  );
+app.delete("/resources/:id", requireAdmin, async (req,res)=>{
+  try {
+  await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
+  res.json({ message: "Resource Deleted" });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
 });
 
 // People
-app.post("/people", (req, res) => {
-  let { name, role, availability_notes } = req.body;
+app.post("/people", requireAdmin, async (req, res) => {
+  try {
+    let { first_name, last_name, role } = req.body;
 
-  name = name?.trim();
-  role = role?.trim();
-  availability_notes = availability_notes?.trim();
+    first_name = first_name?.trim();
+    last_name = last_name?.trim();
+    role = role?.trim();
 
-  if (!name || !role || !availability_notes) {
-    return res.status(400).json({ error: "All people fields are required" });
+    if (!first_name || !last_name || !role) {
+      return res.status(400).json({ error: "All people fields are required" });
+    }
+
+    const fullName = `${first_name} ${last_name}`;
+
+    const [result] = await db.query(
+      "INSERT INTO items (name, type) VALUES (?, 'person')",
+      [fullName]
+    );
+
+    const itemId = result.insertId;
+
+    await db.query(
+      "INSERT INTO people (item_id, first_name, last_name, role) VALUES (?, ?, ?, ?)",
+      [itemId, first_name, last_name, role]
+    )
+
+    res.status(201).json({ id: itemId });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
   }
-
-  // New DB version:
-
-  db.query(
-    "INSERT INTO people (name, role, availability_notes) VALUES (?, ?, ?)",
-    [name, role, availability_notes],
-    (err, result) => {
-      if (err) return res.status(500).json(err);
-      res.status(201).json({ id: result.insertId });
-    }
-  );
 });
 
-app.delete("/people/:id",(req,res)=>{
-  // New DB Delete Version:
-  db.query("DELETE FROM people WHERE id = ?", 
-    [req.params.id], 
-    (err) => {
-      if (err) return res.status(500).json(err);
-      res.json({ message: "Person Deleted" });
-    }
-  );
-});
+app.delete("/people/:id", requireAdmin, async (req,res)=>{
+  try {
+    await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
+    res.json({ message: "Person Deleted" });
 
-// Reservations
-app.get("/reservations", (req, res) => {
-  db.query(`
-    SELECT 
-      reservations.id,
-      reservations.item_type,
-      reservations.item_id,
-      users.email AS user_email,
-      reservations.start_date,
-      reservations.end_date
-    FROM reservations
-    JOIN users ON reservations.user_id = users.id
-    WHERE reservations.end_date >= NOW()
-    ORDER BY reservations.start_date ASC
-  `, 
-    (err, reservations) => {
-      if (err) return res.status(500).json(err);
-      res.json(reservations);
-    }
-  );
-});
-
-app.post("/reservations", (req, res) => {
-  const { item_type, item_id, user_email, start_date, end_date } = req.body;
-
-  if (!item_type || !item_id || !user_email || !start_date || !end_date) {
-    return res.status(400).json({ error: "All fields required" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
   }
+});
 
-  if (new Date(end_date) <= new Date(start_date)) {
-    return res.status(400).json({ error: "End date must be after start date" });
+// All Reservations can take out where if want past aswell
+app.get("/my-reservations", requireAuth, async (req, res) => {
+  try {
+
+    const [reservations] = await db.query(`
+      SELECT 
+        r.id,
+        i.name AS item_name,
+        i.type AS item_type,
+        r.start_date,
+        r.end_date
+      FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      WHERE r.user_id = ?
+      ORDER BY r.start_date ASC
+    `, [req.session.user.id]);
+
+    res.json(reservations);
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
   }
-
-  // New DB version:
-  db.query("SELECT * FROM users WHERE email = ?",
-    [user_email],
-    (err, userResults) => {
-      if (err) return res.status(500).json(err);
-
-      if (userResults.length === 0) {
-        return res.status(400).json({ error: "User not found" });
-      }
-
-      const user_id = userResults[0].id;
-
-      // Check for conflicts:
-      db.query(
-        "SELECT * FROM reservations WHERE item_type = ? AND item_id = ? AND start_date < ? AND end_date > ?",
-        [item_type, item_id, end_date, start_date],
-        (err, conflicts) => {
-          if (err) return res.status(500).json(err);
-
-          if (conflicts.length > 0) {
-            return res.status(400).json({ error: 
-              "This Item is already reserved during that time" 
-            });
-          }
-          
-
-          db.query(
-            "INSERT INTO reservations (item_type, item_id, user_id, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
-            [item_type, item_id, user_id, start_date, end_date],
-            (err, result) => {
-              if (err) return res.status(500).json(err);
-              res.status(201).json({ 
-                message: "Reservation created successfully",
-                id: result.insertId 
-              });
-            }
-          );
-        }
-      );
-    }
-  );
 });
 
-app.delete("/reservations/:id", (req, res) => {
-  // New DB Delete Version:
-  db.query("DELETE FROM reservations WHERE id = ?", 
-    [req.params.id], 
-    (err) => {
-      if (err) return res.status(500).json(err);
-      res.json({ message: "Reservation Deleted" });
-    }
-  );
+
+app.get("/admin/reservations", requireAdmin, async (req, res) => {
+  try {
+
+    const [reservations] = await db.query(`
+      SELECT 
+        r.id,
+        i.name AS item_name,
+        i.type AS item_type,
+        u.email AS user_email,
+        r.start_date,
+        r.end_date
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN items i ON r.item_id = i.id
+      ORDER BY r.start_date ASC
+    `);
+
+    res.json(reservations);
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
 });
 
+
+app.post("/reservations", requireAuth, async (req, res) => {
+  try {
+
+    const reservation = new ReservationImpl(
+      req.body.item_id,
+      req.session.user.id,
+      req.body.start_date,
+      req.body.end_date
+    );
+
+    await reservation.validateReservation();
+    await reservation.addReservation();
+
+    console.log("Reservation added successfully");
+    res.status(201).json({ 
+        message: "Reservation created successfully",
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/reservations/:id", requireAuth, async (req, res) => {
+  try {
+    
+    await db.query("DELETE FROM reservations WHERE id = ? AND user_id = ?", [req.params.id, req.session.user.id]); 
+    res.json({ message: "Reservation Deleted" });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+
+app.delete("/admin/reservations/:id", requireAdmin, async (req, res) => {
+  try {
+    
+    await db.query("DELETE FROM reservations WHERE id = ?", [req.params.id]); 
+    res.json({ message: "Reservation Deleted by Admin" });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
+app.post("/logout", (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Could not log out" });
+    }
+
+    res.clearCookie("connect.sid");
+    res.json({ message: "Logout successful" });
+  });
+});
+
+// Admin page protection route
+app.get("/admin/view-reservations", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "../admin_views/view-reservation.html"));
+});
+
+app.get("/admin/inventory", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "../admin_views/inventory.html"));
+});
+
+app.get("/login", preventLoggedInAccess, (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/login.html"));
+});
+
+app.get("/reserve", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/reserve.html"));
+});
+
+app.get("/my_reservations_page", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/userReservations.html"));
+});
 
 // --------- Serve frontend AFTER API ROUTES ---------
 app.use(express.static(path.join(__dirname, "../public")));

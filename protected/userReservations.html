@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My Reservations</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h2>My Reservations</h2>
+
+  <table border="1">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Item Name</th>
+        <th>Item Type</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Cancel</th>
+      </tr>
+    </thead>
+    <tbody id="reservationTable"></tbody>
+  </table>
+
+  <script>
+    async function loadReservations() {
+      const response = await fetch("/my-reservations");
+
+      if (!response.ok) {
+        alert("Please login first");
+        return;
+      }
+
+      const reservations = await response.json();
+      const table = document.getElementById("reservationTable");
+      table.innerHTML = "";
+
+      reservations.forEach(r => {
+        const row = document.createElement("tr");
+
+        row.innerHTML = `
+          <td>${r.id}</td>
+          <td>${r.item_name}</td>
+          <td>${r.item_type}</td>
+          <td>${r.start_date}</td>
+          <td>${r.end_date}</td>
+          <td>
+            <button onclick="deleteReservation(${r.id})">
+              Cancel
+            </button>
+          </td>
+        `;
+
+        table.appendChild(row);
+      });
+    }
+
+    async function deleteReservation(id) {
+      await fetch("/reservations/" + id, { method: "DELETE" });
+      loadReservations();
+    }
+
+    loadReservations();
+    
+    async function loadNavbar() {
+      const response = await fetch("/components/navbar.html");
+      const navbarHTML = await response.text();
+      document.body.insertAdjacentHTML("afterbegin", navbarHTML);
+
+      const sessionRes = await fetch("/session");
+      const sessionData = await sessionRes.json();
+
+      const authSection = document.getElementById("authSection");
+      const adminLink = document.getElementById("adminLink");
+
+      if (sessionData.loggedIn) {
+        authSection.innerHTML = `
+          ${sessionData.email}
+          <button onclick="logout()">Logout</button>
+        `;
+
+        if (sessionData.is_admin) {
+          adminLink.style.display = "inline";
+        }
+
+      } else {
+        authSection.innerHTML = `
+          <a href="/login.html" style="color:white;">Login</a>
+        `;
+      }
+    }
+
+    async function logout() {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/";
+    }
+
+    loadNavbar();
+  </script>
+</body>
+</html>
