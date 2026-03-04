@@ -4,12 +4,12 @@ const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
-const profileRoutes = require("./profile/profileRoutes");
+//const profileRoutes = require("./profile/profileRoutes");
 // Create app
 const app = express();
 
 // Use routes
-app.use("/profile", profileRoutes);
+//app.use("/profile", profileRoutes);
 
 // Parse JSON requests
 app.use(express.json());
@@ -338,6 +338,70 @@ app.delete("/people/:id", requireAdmin, async (req,res)=>{
   }
 });
 
+//PROFILE API ROUTES
+
+// Get profile information
+app.get("/api/profile", requireAuth, async (req, res) => {
+  try {
+    const [users] = await db.query(
+      "SELECT id, email, bio FROM users WHERE id = ?",
+      [req.session.user.id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(users[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Update biography
+app.put("/api/profile/bio", requireAuth, async (req, res) => {
+  try {
+    const { bio } = req.body;
+
+    await db.query(
+      "UPDATE users SET bio = ? WHERE id = ?",
+      [bio, req.session.user.id]
+    );
+
+    res.json({ message: "Biography updated successfully." });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Get reservations for profile page
+app.get("/api/profile/reservations", requireAuth, async (req, res) => {
+  try {
+    const [reservations] = await db.query(`
+      SELECT
+        r.id,
+        i.name AS item_name,
+        i.type AS item_type,
+        r.start_date,
+        r.end_date
+      FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      WHERE r.user_id = ?
+      ORDER BY r.start_date ASC
+    `, [req.session.user.id]);
+
+    res.json(reservations);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // All Reservations can take out where if want past aswell
 app.get("/my-reservations", requireAuth, async (req, res) => {
   try {
@@ -546,6 +610,10 @@ app.get("/reserve", requireAuth, (req, res) => {
 
 app.get("/my_reservations_page", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "../protected/userReservations.html"));
+});
+
+app.get("/profile", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/profile.html"));
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
