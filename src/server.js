@@ -199,6 +199,33 @@ app.get("/inventory/available", requireAuth, async (req, res) => {
 });
 
 
+app.post("/availability-slots", requireAdmin, async (req, res) => {
+  try {
+    const { item_id, start_time, end_time } = req.body;
+
+    if (!item_id || !start_time || !end_time) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    if (new Date(start_time) >= new Date(end_time)) {
+      return res.status(400).json({ error: "End time must be after start time" });
+    }
+
+    await db.query(
+      `INSERT INTO availability_slots (item_id, start_time, end_time)
+       VALUES (?, ?, ?)`,
+      [item_id, start_time, end_time]
+    );
+
+    res.status(201).json({ message: "Availability slot created" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error: " + err.message });
+  }
+});
+
+
 // Rooms
 app.post("/rooms", requireAdmin, async (req, res) => {
   try {

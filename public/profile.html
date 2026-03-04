@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Profile</title>
+</head>
+<body>
+  <h1>User Profile</h1>
+  <div>
+    <p>Email: <span id="userEmail"></span></p>
+    <p id="userId"></p>
+    <label for="bioInput">Bio:</label>
+    <input type="text" id="bioInput">
+    <button id="updateBioBtn">Update Bio</button>
+  </div>
+
+  <h2>Past Reservations</h2>
+  <ul id="pastReservations"></ul>
+
+  <h2>Today's Reservations</h2>
+  <ul id="todayReservations"></ul>
+
+  <h2>Future Reservations</h2>
+  <ul id="futureReservations"></ul>
+
+  <script src="components/profile.js"></script>
+</body>
+</html>

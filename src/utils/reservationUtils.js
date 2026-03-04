@@ -7,7 +7,7 @@ class reservationUtils {
 
     // Validation checks for the reservation fields (No return values, equivalent to void function in Java)
     static noFieldIsEmpty(reservation) {
-        if (!reservation.item_type || !reservation.item_id || !reservation.user_id || !reservation.start_date || !reservation.end_date) {
+        if (!reservation.item_id || !reservation.user_id || !reservation.start_date || !reservation.end_date) {
             throw new Error("All fields required");
         }
     }
@@ -31,8 +31,8 @@ class reservationUtils {
         }
     }
 
-    getAllUserReservations(user_id) {
-        const [reservations] = db.query(
+    static async getAllUserReservations(user_id) {
+        const [reservations] = await db.query(
             "SELECT * FROM reservations WHERE user_id = ?",
             [user_id]
         );
