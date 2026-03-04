@@ -188,6 +188,13 @@ app.get("/inventory/available", requireAuth, async (req, res) => {
 });
 
 
+//Availability Route
+
+const availabilityRoutes = require('./reservation/availabilityRoutes');
+app.use('/availability', requireAuth, availabilityRoutes)
+
+
+
 // Rooms
 app.post("/rooms", requireAdmin, async (req, res) => {
   try {
