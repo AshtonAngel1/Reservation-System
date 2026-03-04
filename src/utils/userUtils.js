@@ -6,8 +6,8 @@ class userUtils {
         throw new Error("This class cannot be instantiated");
     }
 
-    static noFieldIsEmpty(user) {
-        if (!user.email || !user.password) {
+    static noFieldIsEmpty(email, password) {
+        if (!email || !password) {
             throw new Error("All fields required");
         }
     }
