@@ -71,12 +71,15 @@
 
       const authSection = document.getElementById("authSection");
       const adminLink = document.getElementById("adminLink");
+      const userLinks = document.getElementById("userLinks");
 
       if (sessionData.loggedIn) {
         authSection.innerHTML = `
           ${sessionData.email}
           <button onclick="logout()">Logout</button>
         `;
+
+        userLinks.style.display = "inline";
 
         if (sessionData.is_admin) {
           adminLink.style.display = "inline";
