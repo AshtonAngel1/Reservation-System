@@ -42,7 +42,7 @@ class userUtils {
 
 
     // Compare the provided password with the hashed password stored in the database
-    static dycryptPassword(password, hashedPassword) {
+    static decryptPassword(password, hashedPassword) {
         return bcrypt.compare(password, hashedPassword);
     }
 

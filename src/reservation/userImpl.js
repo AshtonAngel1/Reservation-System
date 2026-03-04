@@ -48,7 +48,7 @@ class userImpl {
         const user = userResults[0];
 
         // Check if the provided password matches the hashed password in the database
-        if (!await userUtils.dycryptPassword(this.#password, user.password)) {
+        if (!await userUtils.decryptPassword(this.#password, user.passwordHash)) {
             throw new Error("Invalid email or password");
         }
 
