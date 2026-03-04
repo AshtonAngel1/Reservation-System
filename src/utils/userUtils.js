@@ -6,8 +6,8 @@ class userUtils {
         throw new Error("This class cannot be instantiated");
     }
 
-    static noFieldIsEmpty(user) {
-        if (!user.email || !user.password) {
+    static noFieldIsEmpty(email, password) {
+        if (!email || !password) {
             throw new Error("All fields required");
         }
     }
@@ -42,7 +42,7 @@ class userUtils {
 
 
     // Compare the provided password with the hashed password stored in the database
-    static dycryptPassword(password, hashedPassword) {
+    static decryptPassword(password, hashedPassword) {
         return bcrypt.compare(password, hashedPassword);
     }
 
