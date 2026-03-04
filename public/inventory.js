@@ -9,9 +9,15 @@ function createDeleteButton(type, id) {
   const btn = document.createElement("button");
   btn.textContent = "Delete";
   btn.addEventListener("click", async () => {
-    await fetch(`/items/${id}`, { method: "DELETE" });
-    loadTables();
-  });
+  const res = await fetch(`/${type}/${id}`, { method: "DELETE" });
+
+  if (!res.ok) {
+    alert("Delete failed!");
+    return;
+  }
+
+  loadTables();
+});
   return btn;
 }
 
@@ -40,6 +46,17 @@ async function loadTables() {
     tdAction.appendChild(createDeleteButton("rooms", r.id));
     tr.appendChild(tdAction);
     roomsTbody.appendChild(tr);
+
+    // Populate Availability Dropdown
+    const availabilitySelect = document.getElementById("availabilityItem");
+    availabilitySelect.innerHTML = "";
+
+    items.forEach(item => {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.name} (${item.type})`;
+      availabilitySelect.appendChild(option);
+    });
   });
 
   // Resources
@@ -121,6 +138,29 @@ document.getElementById("addPersonBtn").addEventListener("click", async () => {
   });
 
   loadTables();
+});
+
+document.getElementById("addAvailabilityBtn").addEventListener("click", async () => {
+
+  const item_id = document.getElementById("availabilityItem").value;
+  const start_time = document.getElementById("availabilityStart").value;
+  const end_time = document.getElementById("availabilityEnd").value;
+
+  if (!item_id || !start_time || !end_time) {
+    return alert("All availability fields are required!");
+  }
+
+  if (new Date(start_time) >= new Date(end_time)) {
+    return alert("End time must be after start time!");
+  }
+
+  await fetch("/availability-slots", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_id, start_time, end_time })
+  });
+
+  alert("Availability slot added!");
 });
 
 // --- INITIAL LOAD ---
