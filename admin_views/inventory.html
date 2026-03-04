@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Inventory</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
@@ -115,47 +115,31 @@
     <button id="addPersonBtn">Add Person</button>
   </div>
 
+  <div id="availabilitySection" class="card">
+  <h2>Set Availability Slot</h2>
+
+  <div class="form-row">
+    <label>Item</label>
+    <select id="availabilityItem"></select>
+  </div>
+
+  <div class="form-row">
+    <label>Start Time</label>
+    <input type="datetime-local" id="availabilityStart">
+  </div>
+
+  <div class="form-row">
+    <label>End Time</label>
+    <input type="datetime-local" id="availabilityEnd">
+  </div>
+
+  <button id="addAvailabilityBtn">Add Availability Slot</button>
+  </div>
+
 </div>
 
-<script src="inventory.js">
-  async function loadNavbar() {
-      const response = await fetch("/components/navbar.html");
-      const navbarHTML = await response.text();
-      document.body.insertAdjacentHTML("afterbegin", navbarHTML);
-
-      const sessionRes = await fetch("/session");
-      const sessionData = await sessionRes.json();
-
-      const authSection = document.getElementById("authSection");
-      const adminLink = document.getElementById("adminLink");
-      const userLinks = document.getElementById("userLinks");
-
-      if (sessionData.loggedIn) {
-        authSection.innerHTML = `
-          ${sessionData.email}
-          <button onclick="logout()">Logout</button>
-        `;
-
-        userLinks.style.display = "inline";
-
-        if (sessionData.is_admin) {
-          adminLink.style.display = "inline";
-        }
-
-      } else {
-        authSection.innerHTML = `
-          <a href="/login.html" style="color:white;">Login</a>
-        `;
-      }
-    }
-
-    async function logout() {
-      await fetch("/logout", { method: "POST" });
-      window.location.href = "/";
-    }
-
-    loadNavbar();
-</script>
+<script src="/inventory.js"></script>
+<script src="/components/navbar.js"></script>
 </body>
 </html>
 
