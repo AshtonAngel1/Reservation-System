@@ -27,11 +27,9 @@ async function loadUsers() {
   const res = await fetch("/admin/users");
   
   if (!res.ok) {
-    alert("Not authorized");
-    window.location.href = "/";
+    alert("Failed to load users");
     return;
   }
-
   const users = await res.json();
   const table = document.getElementById("usersTable");
 
