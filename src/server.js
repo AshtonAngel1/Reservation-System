@@ -676,6 +676,14 @@ app.get("/profile", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "../protected/profile.html"));
 });
 
+app.get("/dashboard", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/dashboard.html"));
+});
+
+app.get("/edit-reservation", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/edit-reservation.html"));
+});
+
 // --------- Serve frontend AFTER API ROUTES ---------
 
 // Serve frontend AFTER
