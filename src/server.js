@@ -4,9 +4,12 @@ const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
-
+//const profileRoutes = require("./profile/profileRoutes");
 // Create app
 const app = express();
+
+// Use routes
+//app.use("/profile", profileRoutes);
 
 // Parse JSON requests
 app.use(express.json());
@@ -20,6 +23,14 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: false } // Set to true if using HTTPS
 }));
+
+// Lock HTML pages behind login
+function requireLoginPage(req, res, next) {
+  if (!req.session.user) {
+    return res.redirect("/login.html");
+  }
+  next();
+}
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
@@ -354,12 +365,76 @@ app.delete("/people/:id", requireAdmin, async (req,res)=>{
   }
 });
 
+//PROFILE API ROUTES
+
+// Get profile information
+app.get("/api/profile", requireAuth, async (req, res) => {
+  try {
+    const [users] = await db.query(
+      "SELECT id, email, bio FROM users WHERE id = ?",
+      [req.session.user.id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(users[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Update biography
+app.put("/api/profile/bio", requireAuth, async (req, res) => {
+  try {
+    const { bio } = req.body;
+
+    await db.query(
+      "UPDATE users SET bio = ? WHERE id = ?",
+      [bio, req.session.user.id]
+    );
+
+    res.json({ message: "Biography updated successfully." });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Get reservations for profile page
+app.get("/api/profile/reservations", requireAuth, async (req, res) => {
+  try {
+    const [reservations] = await db.query(`
+      SELECT
+        r.id,
+        i.name AS item_name,
+        i.type AS item_type,
+        r.start_date,
+        r.end_date
+      FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      WHERE r.user_id = ?
+      ORDER BY r.start_date ASC
+    `, [req.session.user.id]);
+
+    res.json(reservations);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // All Reservations can take out where if want past aswell
 app.get("/my-reservations", requireAuth, async (req, res) => {
   try {
 
     const [reservations] = await db.query(`
-      SELECT 
+      SELECT
         r.id,
         i.name AS item_name,
         i.type AS item_type,
@@ -405,6 +480,35 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
   }
 });
 
+//ADMIN VIEW ALL USERS
+app.get("/admin/users", requireAdmin, async (req, res) => {
+  try {
+
+    const [users] = await db.query(`
+      SELECT 
+        u.id,
+        u.email,
+        DATEDIFF(NOW(), u.created_at) AS days_registered,
+
+        COUNT(r.id) AS total_reservations,
+
+        SUM(CASE WHEN r.end_date < NOW() THEN 1 ELSE 0 END) AS past_reservations,
+
+        SUM(CASE WHEN r.start_date > NOW() THEN 1 ELSE 0 END) AS upcoming_reservations
+
+      FROM users u
+      LEFT JOIN reservations r ON u.id = r.user_id
+      GROUP BY u.id
+      ORDER BY u.id ASC
+    `);
+
+    res.json(users);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 app.post("/reservations", requireAuth, async (req, res) => {
   try {
@@ -427,6 +531,82 @@ app.post("/reservations", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(400).json({ error: err.message });
+  }
+});
+
+//Edit Reservation route
+app.put("/reservations/:id", requireAuth, async (req, res) => {
+  try {
+    const reservationId = req.params.id;
+    const userId = req.session.user.id;
+    const { item_id, quantity, start_date, end_date } = req.body;
+
+    const errors = [];
+
+    // Basic validation
+    if (!item_id || !quantity || !start_date || !end_date) {
+      errors.push("All fields are required.");
+    }
+
+    if (quantity <= 0) {
+      errors.push("Quantity must be at least 1.");
+    }
+
+    const today = new Date();
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+
+    if (start < today) {
+      errors.push("Start date cannot be in the past.");
+    }
+
+    if (end < start) {
+      errors.push("End date must be after start date.");
+    }
+
+    // Make sure reservation belongs to this user
+    const [existing] = await db.query(
+      "SELECT * FROM reservations WHERE id = ? AND user_id = ?",
+      [reservationId, userId]
+    );
+
+    if (existing.length === 0) {
+      return res.status(403).json({ message: "Not authorized." });
+    }
+
+    // Check item availability
+    const [item] = await db.query(
+      "SELECT total_quantity FROM items WHERE id = ?",
+      [item_id]
+    );
+
+    if (item.length === 0) {
+      errors.push("Item does not exist.");
+    } else {
+      if (quantity > item[0].total_quantity) {
+        errors.push(
+          `Only ${item[0].total_quantity} available in inventory.`
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+
+    // All good — update
+    await db.query(
+      `UPDATE reservations 
+       SET item_id = ?, quantity = ?, start_date = ?, end_date = ?
+       WHERE id = ?`,
+      [item_id, quantity, start_date, end_date, reservationId]
+    );
+
+    res.json({ message: "Reservation updated successfully." });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error: " + err.message });
   }
 });
 
@@ -476,6 +656,10 @@ app.get("/admin/inventory", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "../admin_views/inventory.html"));
 });
 
+app.get("/admin/users-page", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "../admin_views/view-users.html"));
+});
+
 app.get("/login", preventLoggedInAccess, (req, res) => {
   res.sendFile(path.join(__dirname, "../public/login.html"));
 });
@@ -488,7 +672,13 @@ app.get("/my_reservations_page", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "../protected/userReservations.html"));
 });
 
+app.get("/profile", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/profile.html"));
+});
+
 // --------- Serve frontend AFTER API ROUTES ---------
+
+// Serve frontend AFTER
 app.use(express.static(path.join(__dirname, "../public")));
 
 app.get("/", (req,res)=>{
