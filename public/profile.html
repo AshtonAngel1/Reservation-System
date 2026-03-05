@@ -1,32 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>User Profile</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <title>User Profile</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
-  <div id="profile-container">
-    <div id="user-info">
-      <img src="components/profile-pic.png" alt="Profile Picture" width="100">
-      <h2 id="user-email"></h2>
-      <p>ID: <span id="user-id"></span></p>
-      <textarea id="bio" placeholder="Enter your bio"></textarea>
-      <button id="save-bio">Save Bio</button>
+
+    <div id="profile-container">
+
+        <div id="user-info">
+
+            <img id="profile-picture" src="components/profile-pic.png" width="100">
+
+            <h2 id="userEmail"></h2>
+
+            <p>User ID: <span id="userId"></span></p>
+
+            <textarea id="bioInput" placeholder="Enter your bio"></textarea>
+
+            <button id="updateBioBtn">Save Bio</button>
+
+        </div>
+
+        <div id="reservations">
+
+            <h3>Past Reservations</h3>
+            <ul id="pastReservations"></ul>
+
+            <h3>Today's Reservations</h3>
+            <ul id="todayReservations"></ul>
+
+            <h3>Future Reservations</h3>
+            <ul id="futureReservations"></ul>
+
+        </div>
+
     </div>
 
-    <div id="reservations">
-      <h3>Past Reservations</h3>
-      <ul id="past-reservations"></ul>
+    <script src="components/profile.js"></script>
 
-      <h3>Today's Reservations</h3>
-      <ul id="today-reservations"></ul>
-
-      <h3>Future Reservations</h3>
-      <ul id="future-reservations"></ul>
-    </div>
-  </div>
-
-  <script src="components/profile.js"></script>
 </body>
 </html>
