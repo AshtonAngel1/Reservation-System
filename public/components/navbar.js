@@ -19,7 +19,7 @@ async function loadNavbar() {
         userLinks.style.display = "inline";
 
         if (sessionData.is_admin) {
-          adminLink.style.display = "inline";
+          adminLink.style.display = "inline-block";
         }
 
       } else {
