@@ -371,7 +371,7 @@ app.delete("/people/:id", requireAdmin, async (req,res)=>{
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
     const [users] = await db.query(
-      "SELECT id, email, bio FROM users WHERE id = ?",
+      "SELECT id, email FROM users WHERE id = ?",
       [req.session.user.id]
     );
 
@@ -387,7 +387,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
   }
 });
 
-// Update biography
+// Update biography (Users table doesn't have bio column would need to use user_profiles table)
 app.put("/api/profile/bio", requireAuth, async (req, res) => {
   try {
     const { bio } = req.body;

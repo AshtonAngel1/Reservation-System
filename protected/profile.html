@@ -38,7 +38,7 @@
   <div class="bio-section">
     <h2>Biography</h2>
     <textarea id="bioInput" placeholder="Enter a short biography..."></textarea>
-    <button onclick="saveBio()">Save Biography</button>
+    <button>Save Biography</button>
     <p id="bioStatus"></p>
   </div>
 
@@ -62,12 +62,6 @@ async function loadProfile() {
   const res = await fetch("/api/profile");
   const data = await res.json();
 
-  if (!res.ok) {
-    alert("You must be logged in.");
-    window.location.href = "/login.html";
-    return;
-  }
-
   document.getElementById("userEmail").textContent = data.email;
   document.getElementById("userId").textContent = data.id;
   document.getElementById("bioInput").value = data.bio || "";
@@ -75,18 +69,18 @@ async function loadProfile() {
   loadReservations();
 }
 
-async function saveBio() {
-  const bio = document.getElementById("bioInput").value;
+// async function saveBio() {
+//   const bio = document.getElementById("bioInput").value;
 
-  const res = await fetch("/api/profile/bio", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bio })
-  });
+//   const res = await fetch("/api/profile/bio", {
+//     method: "PUT",
+//     headers: { "Content-Type": "application/json" },
+//     body: JSON.stringify({ bio })
+//   });
 
-  const data = await res.json();
-  document.getElementById("bioStatus").textContent = data.message;
-}
+//   const data = await res.json();
+//   document.getElementById("bioStatus").textContent = data.message;
+// }
 
 async function loadReservations() {
   const res = await fetch("/api/reservations/my");
@@ -126,6 +120,7 @@ async function loadReservations() {
 
 loadProfile();
 </script>
+<script src="/components/navbar.js"></script>
 
 </body>
 </html>
