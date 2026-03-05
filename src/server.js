@@ -480,6 +480,35 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
   }
 });
 
+//ADMIN VIEW ALL USERS
+app.get("/admin/users", requireAdmin, async (req, res) => {
+  try {
+
+    const [users] = await db.query(`
+      SELECT 
+        u.id,
+        u.email,
+        DATEDIFF(NOW(), u.created_at) AS days_registered,
+
+        COUNT(r.id) AS total_reservations,
+
+        SUM(CASE WHEN r.end_date < NOW() THEN 1 ELSE 0 END) AS past_reservations,
+
+        SUM(CASE WHEN r.start_date > NOW() THEN 1 ELSE 0 END) AS upcoming_reservations
+
+      FROM users u
+      LEFT JOIN reservations r ON u.id = r.user_id
+      GROUP BY u.id
+      ORDER BY u.id ASC
+    `);
+
+    res.json(users);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 app.post("/reservations", requireAuth, async (req, res) => {
   try {
@@ -625,6 +654,10 @@ app.get("/admin/view-reservations", requireAdmin, (req, res) => {
 
 app.get("/admin/inventory", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "../admin_views/inventory.html"));
+});
+
+app.get("/admin/users-page", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "../admin_views/view-users.html"));
 });
 
 app.get("/login", preventLoggedInAccess, (req, res) => {

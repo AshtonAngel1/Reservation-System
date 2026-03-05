@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>View All Users</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<h1>All Registered Users</h1>
+
+<table border="1" cellpadding="10">
+  <thead>
+    <tr>
+      <th>User ID</th>
+      <th>Email</th>
+      <th>Days Registered</th>
+      <th>Total Reservations</th>
+      <th>Past Reservations</th>
+      <th>Upcoming Reservations</th>
+    </tr>
+  </thead>
+  <tbody id="usersTable"></tbody>
+</table>
+
+<script>
+async function loadUsers() {
+  const res = await fetch("/admin/users");
+  
+  if (!res.ok) {
+    alert("Not authorized");
+    window.location.href = "/";
+    return;
+  }
+
+  const users = await res.json();
+  const table = document.getElementById("usersTable");
+
+  users.forEach(user => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${user.id}</td>
+      <td>${user.email}</td>
+      <td>${user.days_registered || 0}</td>
+      <td>${user.total_reservations || 0}</td>
+      <td>${user.past_reservations || 0}</td>
+      <td>${user.upcoming_reservations || 0}</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+loadUsers();
+</script>
+
+</body>
+</html>
