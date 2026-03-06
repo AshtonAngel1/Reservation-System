@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const availabilityService = require('./availabilityService');
 
-router.get('', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { item_id, date } = req.query;
 
