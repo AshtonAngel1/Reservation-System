@@ -45,10 +45,6 @@
       const startDate = document.getElementById("startDate").value;
       const endDate = document.getElementById("endDate").value;
 
-      if (!startDate || !endDate) {
-        return;
-      }
-
       const response = await fetch(`/inventory/available?type=${type}&start=${startDate || ""}&end=${endDate || ""}`);
       const items = await response.json();
 
