@@ -20,7 +20,7 @@
     </div>
     <br>
     <button type="submit">Register</button>
-    <div id="errorMessage" class="error-message" style="display:none;"></div>
+    <div id="errorMessage" class="error-message" style="color:red; display:none;"></div>
   </form>
   <p>Already have an account? <a href="login.html">Login</a></p>
  </div>
@@ -48,12 +48,12 @@
           return;
         }
 
-        if (data.errors && data.errors.length > 0) {
-          errorDiv.textContent = data.errors.join(", ");
-        } else if (data.error) {
-          errorDiv.textContent = data.error;
-        } else {
-          errorDiv.textContent = "Registration failed. Please try again.";
+        if (!res.ok) {
+          const errorDiv = document.getElementById("errorMessage");
+          errorDiv.textContent = data.error || "Invalid email or password.";
+          errorDiv.style.display = "block";
+          document.getElementById("password").value = "";
+          return;
         }
 
         errorDiv.style.display = "block";

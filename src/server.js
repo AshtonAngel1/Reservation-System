@@ -171,24 +171,42 @@ app.get("/inventory/available", requireAuth, async (req, res) => {
   try {
     const { type, start, end } = req.query;
 
-    if (!type || !start || !end) {
-      return res.status(400).json({ error: "Missing required parameters" });
+    if (!type) {
+      return res.status(400).json({ error: "Missing item type" });
     }
 
-    const sql = `
-      SELECT i.id, i.name, i.type
-      FROM items i
-      WHERE i.type = ?
-      AND i.active = TRUE
-      AND i.id NOT IN (
-        SELECT r.item_id
-        FROM reservations r
-        WHERE r.start_date < ?
-        AND r.end_date > ?
-      )
-    `;
+    let sql;
+    let params;
+    
+    if (start && end) {
+    
+      sql = `
+        SELECT i.id, i.name, i.type
+        FROM items i
+        LEFT JOIN reservations r
+          ON i.id = r.item_id
+          AND r.start_date < ?
+          AND r.end_date > ?
+        WHERE i.type = ?
+        AND i.active = TRUE
+        AND r.id IS NULL
+      `;
 
-    const [rows] = await db.execute(sql, [type, end, start]);
+      params = [end, start, type];
+
+    } else {
+
+      sql = `
+        SELECT id, name, type
+        FROM items
+        WHERE type = ?
+        AND active = TRUE
+      `;
+      
+      params = [type];
+    }
+
+    const [rows] = await db.execute(sql, params);
 
     res.json(rows);
 
@@ -371,7 +389,7 @@ app.delete("/people/:id", requireAdmin, async (req,res)=>{
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
     const [users] = await db.query(
-      "SELECT id, email, bio FROM users WHERE id = ?",
+      "SELECT id, email FROM users WHERE id = ?",
       [req.session.user.id]
     );
 
@@ -387,7 +405,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
   }
 });
 
-// Update biography
+// Update biography (Users table doesn't have bio column would need to use user_profiles table)
 app.put("/api/profile/bio", requireAuth, async (req, res) => {
   try {
     const { bio } = req.body;
@@ -480,7 +498,7 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
   }
 });
 
-// ---------------- ADMIN VIEW ALL USERS ----------------
+//ADMIN VIEW ALL USERS
 app.get("/admin/users", requireAdmin, async (req, res) => {
   try {
 
@@ -674,6 +692,14 @@ app.get("/my_reservations_page", requireAuth, (req, res) => {
 
 app.get("/profile", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "../protected/profile.html"));
+});
+
+app.get("/dashboard", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/dashboard.html"));
+});
+
+app.get("/edit-reservation", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/edit-reservation.html"));
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------

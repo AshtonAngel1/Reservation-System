@@ -20,10 +20,7 @@ class userImpl {
 
 
     validateNewUser() {
-        userUtils.noFieldIsEmpty({
-            email: this.#email,
-            password: this.#password
-        });
+        userUtils.noFieldIsEmpty(this.#email, this.#password);
 
         if (!userUtils.validateNewEmail(this.#email)) {
                 throw new Error("Invalid email format");
@@ -38,12 +35,9 @@ class userImpl {
 
 
     async validateUserLogIn() {
-        userUtils.noFieldIsEmpty({
-            email: this.#email,
-            password: this.#password
-        });
+        userUtils.noFieldIsEmpty(this.#email, this.#password);
         const [userResults] = await db.query(
-            "SELECT id, email, password, is_admin FROM users WHERE email = ?",
+            "SELECT id, email, passwordHash, is_admin FROM users WHERE email = ?",
             [this.#email]
         );
 
@@ -54,7 +48,7 @@ class userImpl {
         const user = userResults[0];
 
         // Check if the provided password matches the hashed password in the database
-        if (!await userUtils.dycryptPassword(this.#password, user.password)) {
+        if (!await userUtils.decryptPassword(this.#password, user.passwordHash)) {
             throw new Error("Invalid email or password");
         }
 
@@ -74,7 +68,7 @@ class userImpl {
 
             const hashedPassword = await userUtils.hashPassword(this.#password);
             const [result] = await db.query(
-                "INSERT INTO users (email, password) VALUES (?, ?)",
+                "INSERT INTO users (email, passwordHash) VALUES (?, ?)",
                 [this.#email, hashedPassword]
             );
 
