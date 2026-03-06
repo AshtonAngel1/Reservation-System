@@ -31,6 +31,27 @@ class reservationUtils {
         }
     }
 
+    static startDateNotInPast(reservation) {
+        const now = new Date();
+        const startDate = new Date(reservation.start_date);
+
+        if (startDate < now) {
+            throw new Error("Start date cannot be in the past");
+        }
+    }
+
+    static reservationCannotExceedOneWeek(reservation) {
+        const startDate = new Date(reservation.start_date);
+        const endDate = new Date(reservation.end_date);
+
+        const diffTime = Math.abs(endDate - startDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 7) {
+            throw new Error("Reservation cannot exceed one week");
+        }
+    }
+
     static async getAllUserReservations(user_id) {
         const [reservations] = await db.query(
             "SELECT * FROM reservations WHERE user_id = ?",

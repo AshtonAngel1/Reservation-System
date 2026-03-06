@@ -15,6 +15,8 @@ class ReservationImpl {
         // Add in validationchecks after methods are created
         reservationUtils.noFieldIsEmpty(this);
         reservationUtils.endDateIsAfterStartDate(this);
+        reservationUtils.startDateNotInPast(this);
+        reservationUtils.reservationCannotExceedOneWeek(this);
         await reservationUtils.checkForConflicts(this);
         await reservationUtils.checkAvailabilityWindow(this);
     }
