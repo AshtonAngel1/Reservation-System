@@ -9,16 +9,23 @@ function createDeleteButton(type, id) {
   const btn = document.createElement("button");
   btn.textContent = "Delete";
   btn.addEventListener("click", async () => {
-    await fetch(`/items/${id}`, { method: "DELETE" });
-    loadTables();
-  });
+  const res = await fetch(`/${type}/${id}`, { method: "DELETE" });
+
+  if (!res.ok) {
+    alert("Delete failed!");
+    return;
+  }
+
+  loadTables();
+});
   return btn;
 }
 
 
 // --- LOAD TABLES ---
 async function loadTables() {
-  const items = await fetchInventory();
+  const data = await fetchInventory();
+  const items = data.items;
 
   const rooms = items.filter(i => i.type === "room");
   const resources = items.filter(i => i.type === "resource");
@@ -67,13 +74,25 @@ async function loadTables() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${p.id}</td>
-      <td>${p.first_name || ""} ${p.last_name || ""}</td>
+      <td>${p.first_name || ""}</td>
+      <td>${p.last_name || ""}</td>
       <td>${p.role || ""}</td>
     `;
     const tdAction = document.createElement("td");
     tdAction.appendChild(createDeleteButton("people", p.id));
     tr.appendChild(tdAction);
     peopleTbody.appendChild(tr);
+  });
+
+  // Populate Availability Dropdown
+  const availabilitySelect = document.getElementById("availabilityItem");
+  availabilitySelect.innerHTML = "";
+
+  items.forEach(item => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.name} (${item.type})`;
+    availabilitySelect.appendChild(option);
   });
 }
 
@@ -86,7 +105,7 @@ document.getElementById("addRoomBtn").addEventListener("click", async () => {
   if (!name || !location) return alert("Name and Location cannot be empty!");
   if (isNaN(capacity) || capacity <= 0) return alert("Capacity must be a positive number!");
 
-  await fetch("rooms", { 
+  await fetch("/rooms", { 
     method: "POST", 
     headers: { "Content-Type": "application/json" }, 
     body: JSON.stringify({ name, capacity, location }) 
@@ -121,6 +140,29 @@ document.getElementById("addPersonBtn").addEventListener("click", async () => {
   });
 
   loadTables();
+});
+
+document.getElementById("addAvailabilityBtn").addEventListener("click", async () => {
+
+  const item_id = document.getElementById("availabilityItem").value;
+  const start_time = document.getElementById("availabilityStart").value;
+  const end_time = document.getElementById("availabilityEnd").value;
+
+  if (!item_id || !start_time || !end_time) {
+    return alert("All availability fields are required!");
+  }
+
+  if (new Date(start_time) >= new Date(end_time)) {
+    return alert("End time must be after start time!");
+  }
+
+  await fetch("/availability-slots", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_id, start_time, end_time })
+  });
+
+  alert("Availability slot added!");
 });
 
 // --- INITIAL LOAD ---
