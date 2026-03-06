@@ -192,7 +192,7 @@ app.get("/inventory/available", requireAuth, async (req, res) => {
         AND r.id IS NULL
       `;
 
-      params = [type, end, start];
+      params = [end, start, type];
 
     } else {
 
