@@ -45,7 +45,11 @@
       const startDate = document.getElementById("startDate").value;
       const endDate = document.getElementById("endDate").value;
 
-      const response = await fetch(`/inventory/available?type=${type}&start=${startDate}&end=${endDate}`);
+      if (!startDate || !endDate) {
+        return;
+      }
+
+      const response = await fetch(`/inventory/available?type=${type}&start=${startDate || ""}&end=${endDate || ""}`);
       const items = await response.json();
 
       itemSelect.innerHTML = "";
@@ -70,7 +74,7 @@
       e.preventDefault();
 
       const reservation = {
-        item_id: document.getElementById("itemType").value,
+        item_id: itemSelect.value,
         start_date: document.getElementById("startDate").value,
         end_date: document.getElementById("endDate").value
       };
@@ -87,6 +91,7 @@
       if (response.ok) {
         message.textContent = "Reservation created successfully!";
         form.reset();
+        await loadItems(); // Refresh available items
       } else {
         message.textContent = data.error || "Error creating reservation";
       }

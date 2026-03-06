@@ -171,24 +171,42 @@ app.get("/inventory/available", requireAuth, async (req, res) => {
   try {
     const { type, start, end } = req.query;
 
-    if (!type || !start || !end) {
-      return res.status(400).json({ error: "Missing required parameters" });
+    if (!type) {
+      return res.status(400).json({ error: "Missing item type" });
     }
 
-    const sql = `
-      SELECT i.id, i.name, i.type
-      FROM items i
-      WHERE i.type = ?
-      AND i.active = TRUE
-      AND i.id NOT IN (
-        SELECT r.item_id
-        FROM reservations r
-        WHERE r.start_date < ?
-        AND r.end_date > ?
-      )
-    `;
+    let sql;
+    let params;
+    
+    if (start && end) {
+    
+      sql = `
+        SELECT i.id, i.name, i.type
+        FROM items i
+        LEFT JOIN reservations r
+          ON i.id = r.item_id
+          AND r.start_date < ?
+          AND r.end_date > ?
+        WHERE i.type = ?
+        AND i.active = TRUE
+        AND r.id IS NULL
+      `;
 
-    const [rows] = await db.execute(sql, [type, end, start]);
+      params = [type, end, start];
+
+    } else {
+
+      sql = `
+        SELECT id, name, type
+        FROM items
+        WHERE type = ?
+        AND active = TRUE
+      `;
+      
+      params = [type];
+    }
+
+    const [rows] = await db.execute(sql, params);
 
     res.json(rows);
 
