@@ -555,76 +555,42 @@ app.post("/reservations", requireAuth, async (req, res) => {
 //Edit Reservation route
 app.put("/reservations/:id", requireAuth, async (req, res) => {
   try {
+
     const reservationId = req.params.id;
     const userId = req.session.user.id;
-    const { item_id, quantity, start_date, end_date } = req.body;
 
-    const errors = [];
-
-    // Basic validation
-    if (!item_id || !quantity || !start_date || !end_date) {
-      errors.push("All fields are required.");
-    }
-
-    if (quantity <= 0) {
-      errors.push("Quantity must be at least 1.");
-    }
-
-    const today = new Date();
-    const start = new Date(start_date);
-    const end = new Date(end_date);
-
-    if (start < today) {
-      errors.push("Start date cannot be in the past.");
-    }
-
-    if (end < start) {
-      errors.push("End date must be after start date.");
-    }
-
-    // Make sure reservation belongs to this user
+    // Verify reservation belongs to user
     const [existing] = await db.query(
       "SELECT * FROM reservations WHERE id = ? AND user_id = ?",
       [reservationId, userId]
     );
 
     if (existing.length === 0) {
-      return res.status(403).json({ message: "Not authorized." });
+      return res.status(403).json({ error: "Not authorized to edit this reservation" });
     }
 
-    // Check item availability
-    const [item] = await db.query(
-      "SELECT total_quantity FROM items WHERE id = ?",
-      [item_id]
+    const reservation = new ReservationImpl(
+      req.body.item_id,
+      userId,
+      req.body.start_date,
+      req.body.end_date
     );
 
-    if (item.length === 0) {
-      errors.push("Item does not exist.");
-    } else {
-      if (quantity > item[0].total_quantity) {
-        errors.push(
-          `Only ${item[0].total_quantity} available in inventory.`
-        );
-      }
-    }
+    // reuse validation pipeline
+    await reservation.validateReservation();
 
-    if (errors.length > 0) {
-      return res.status(400).json({ errors });
-    }
-
-    // All good — update
     await db.query(
-      `UPDATE reservations 
-       SET item_id = ?, quantity = ?, start_date = ?, end_date = ?
+      `UPDATE reservations
+       SET item_id = ?, start_date = ?, end_date = ?
        WHERE id = ?`,
-      [item_id, quantity, start_date, end_date, reservationId]
+      [reservation.item_id, reservation.start_date, reservation.end_date, reservationId]
     );
 
-    res.json({ message: "Reservation updated successfully." });
+    res.json({ message: "Reservation updated successfully" });
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error: " + err.message });
+    res.status(400).json({ error: err.message });
   }
 });
 
