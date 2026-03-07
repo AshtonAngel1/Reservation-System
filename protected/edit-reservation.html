@@ -16,11 +16,7 @@
   <input type="hidden" id="reservationId">
 
   <label>Item Type:</label>
-  <select id="itemType">
-    <option value="room">Room</option>
-    <option value="resource">Resource</option>
-    <option value="person">Person</option>
-  </select>
+  <span id="itemType"></span>
 
   <label>Select Item:</label>
   <select id="itemSelect"></select>
@@ -48,9 +44,14 @@ itemTypeSelect.addEventListener("change", loadItems);
 document.getElementById("startDate").addEventListener("change", loadItems);
 document.getElementById("endDate").addEventListener("change", loadItems);
 
+if (!reservationId) {
+  document.getElementById("errorBox").textContent = "Reservation ID missing";
+  throw new Error("Missing reservation id");
+}
+
 // Load items
 async function loadItems() {
-  const type = itemTypeSelect.value;
+  const type = document.getElementById("itemType").textContent;
   const start = document.getElementById("startDate").value;
   const end = document.getElementById("endDate").value;
 
@@ -67,7 +68,31 @@ async function loadItems() {
   });
 }
 
-loadItems();
+
+async function loadReservation() {
+  try {
+    const res = await fetch(`/reservations/${reservationId}`);
+    const reservation = await res.json();
+
+    if (!res.ok) {
+      document.getElementById("errorBox").textContent = reservation.error;
+      return;
+    }
+
+    document.getElementById("itemType").textContent = reservation.item_type;
+    document.getElementById("startDate").value = reservation.start_date.slice(0, 16);
+    document.getElementById("endDate").value = reservation.end_date.slice(0, 16);
+
+    await loadItems()
+
+    itemSelect.value = reservation.item_id;
+
+  } catch (err) {
+    document.getElementById("errorBox").textContent = "Failed to load reservation";
+  }
+}
+
+loadReservation();
 
 document.getElementById("editForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -90,6 +115,10 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
 
   if (response.ok) {
     message.textContent = "Reservation updated successfully";
+
+    setTimeout(() => {
+      window.location.href = "/my_reservations_page";
+    }, 1500);
   } else {
     message.textContent = data.error;
   }

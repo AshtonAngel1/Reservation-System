@@ -552,6 +552,31 @@ app.post("/reservations", requireAuth, async (req, res) => {
   }
 });
 
+//Get reservation Route
+app.get("/reservations/:id", requireAuth, async (req, res) => {
+  try {
+    const reservationId = req.params.id;
+    const userId = req.session.user.id;
+
+    const [reservations] = await db.query(`
+      SELECT r.id, r.item_id, r.start_date, r.end_date, i.name AS item_name, i.type AS item_type
+      FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      WHERE r.id = ? AND r.user_id = ?
+    `, [reservationId, userId]);
+
+    if (reservations.length === 0) {
+      return res.status(404).json({ error: "Reservation not found" });
+    }
+
+    res.json(reservations[0]);
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 //Edit Reservation route
 app.put("/reservations/:id", requireAuth, async (req, res) => {
   try {
@@ -568,6 +593,13 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
     if (existing.length === 0) {
       return res.status(403).json({ error: "Not authorized to edit this reservation" });
     }
+
+    const now = new Date();
+    const startTime = new Date(existing[0].start_date);
+
+    if (startTime < now) {
+      return res.status(400).json({ error: "Cannot edit past reservations" });
+    };
 
     const reservation = new ReservationImpl(
       req.body.item_id,
