@@ -62,10 +62,19 @@ class reservationUtils {
     }
 
     static async checkAvailabilityWindow(reservation) {
-        const [rows] = await db.query(
-            "SELECT * FROM availability_slots WHERE item_id = ? AND start_time <= ? AND end_time >= ?",
-            [reservation.item_id, reservation.start_date, reservation.end_date]
-        );
+        let query = "SELECT * FROM availability_slots WHERE item_id = ? AND start_time <= ? AND end_time >= ?";
+        let params = [
+            reservation.item_id, 
+            reservation.start_date, 
+            reservation.end_date
+        ];
+
+        if (reservation.id) {
+            query += " AND id != ?";
+            params.push(reservation.id);
+        }
+
+        const [rows] = await db.query(query, params);
 
         if (rows.length === 0) {
             throw new Error("Reservation outside availability window.");
