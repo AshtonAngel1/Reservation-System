@@ -15,6 +15,7 @@
         <th>Item Type</th>
         <th>Start</th>
         <th>End</th>
+        <th>Edit</th>
         <th>Cancel</th>
       </tr>
     </thead>
@@ -36,13 +37,33 @@
 
       reservations.forEach(r => {
         const row = document.createElement("tr");
+        const start = new Date(r.start_date).toLocaleString();
+        const end = new Date(r.end_date).toLocaleString();
+        const now = new Date();
+        const startTime = new Date(r.start_date);
+
+        let editButton = "";
+        if (startTime > now) {
+          editButton = `
+            <td>
+              <button onclick="window.location='/edit-reservation?id=${r.id}'">
+                Edit
+              </button>
+            </td>
+          `;
+        } else {
+          editButton = "<td></td>";
+        }
 
         row.innerHTML = `
           <td>${r.id}</td>
           <td>${r.item_name}</td>
           <td>${r.item_type}</td>
-          <td>${r.start_date}</td>
-          <td>${r.end_date}</td>
+          <td>${start}</td>
+          <td>${end}</td>
+
+          <td>${editButton}</td>
+
           <td>
             <button onclick="deleteReservation(${r.id})">
               Cancel
