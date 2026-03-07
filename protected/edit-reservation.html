@@ -8,26 +8,28 @@
 
 <h2>Edit Reservation</h2>
 
+<p id="message"></p>
+
 <div id="errorBox" style="color:red;"></div>
 
 <form id="editForm">
   <input type="hidden" id="reservationId">
 
-  <label>Item:</label>
-  <select id="item_id"></select>
-  <br><br>
+  <label>Item Type:</label>
+  <select id="itemType">
+    <option value="room">Room</option>
+    <option value="resource">Resource</option>
+    <option value="person">Person</option>
+  </select>
 
-  <label>Quantity:</label>
-  <input type="number" id="quantity" min="1">
-  <br><br>
+  <label>Select Item:</label>
+  <select id="itemSelect"></select>
 
   <label>Start Date:</label>
-  <input type="date" id="start_date">
-  <br><br>
+  <input type="datetime-local" id="startDate">
 
   <label>End Date:</label>
-  <input type="date" id="end_date">
-  <br><br>
+  <input type="datetime-local" id="endDate">
 
   <button type="submit">Update Reservation</button>
 </form>
@@ -36,19 +38,32 @@
 
 const urlParams = new URLSearchParams(window.location.search);
 const reservationId = urlParams.get("id");
+
+const itemTypeSelect = document.getElementById("itemType");
+const itemSelect = document.getElementById("itemSelect");
+
 document.getElementById("reservationId").value = reservationId;
+
+itemTypeSelect.addEventListener("change", loadItems);
+document.getElementById("startDate").addEventListener("change", loadItems);
+document.getElementById("endDate").addEventListener("change", loadItems);
 
 // Load items
 async function loadItems() {
-  const res = await fetch("/inventory");
+  const type = itemTypeSelect.value;
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+
+  const res = await fetch(`/inventory/available?type=${type}&start=${start}&end=${end}`);
   const items = await res.json();
 
-  const select = document.getElementById("item_id");
+  itemSelect.innerHTML = "";
+
   items.forEach(item => {
     const option = document.createElement("option");
     option.value = item.id;
-    option.textContent = `${item.name} (Available: ${item.total_quantity})`;
-    select.appendChild(option);
+    option.textContent = item.name;
+    itemSelect.appendChild(option);
   });
 }
 
@@ -57,30 +72,26 @@ loadItems();
 document.getElementById("editForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const item_id = document.getElementById("item_id").value;
-  const quantity = document.getElementById("quantity").value;
-  const start_date = document.getElementById("start_date").value;
-  const end_date = document.getElementById("end_date").value;
+  const reservation = {
+    item_id: itemSelect.value,
+    start_date: document.getElementById("startDate").value,
+    end_date: document.getElementById("endDate").value
+  };
 
-  const res = await fetch(`/reservations/${reservationId}`, {
+  const response = await fetch(`/reservations/${reservationId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ item_id, quantity, start_date, end_date })
+    body: JSON.stringify(reservation)
   });
 
-  const data = await res.json();
+  const data = await response.json();
 
-  if (!res.ok) {
-    const errorBox = document.getElementById("errorBox");
-    errorBox.innerHTML = "";
-    data.errors.forEach(err => {
-      const p = document.createElement("p");
-      p.textContent = err;
-      errorBox.appendChild(p);
-    });
+  const message = document.getElementById("message");
+
+  if (response.ok) {
+    message.textContent = "Reservation updated successfully";
   } else {
-    alert("Reservation updated!");
-    window.location.href = "my-reservations.html";
+    message.textContent = data.error;
   }
 });
 

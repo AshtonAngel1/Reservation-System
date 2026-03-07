@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Create Reservation</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <h2>Create Reservation</h2>
@@ -69,6 +69,24 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
+      const startDate = new Date(document.getElementById("startDate").value);
+      const endDate = new Date(document.getElementById("endDate").value);
+      const message = document.getElementById("message");
+
+      const now = new Date();
+
+      if (startDate < now) {
+        message.textContent = "Start date cannot be in the past";
+        return;
+      }
+
+      const diffDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
+
+      if (diffDays > 7) {
+        message.textContent = "Reservations cannot exceed 7 days";
+        return;
+      }
+
       const reservation = {
         item_id: itemSelect.value,
         start_date: document.getElementById("startDate").value,
@@ -82,7 +100,6 @@
       });
 
       const data = await response.json();
-      const message = document.getElementById("message");
 
       if (response.ok) {
         message.textContent = "Reservation created successfully!";

@@ -22,12 +22,33 @@ class reservationUtils {
 
     static async checkForConflicts(reservation) {
         const [conflicts] = await db.query(
-            "SELECT * FROM reservations WHERE item_id = ? AND start_date < ? AND end_date > ?",
-            [reservation.item_id, reservation.end_date, reservation.start_date]
+            "SELECT * FROM reservations WHERE item_id = ? AND id != ? AND start_date < ? AND end_date > ?",
+            [reservation.item_id, reservation.id, reservation.start_date, reservation.end_date]
         );
 
         if (conflicts.length > 0) {
             throw new Error("This Item is already reserved during that time");
+        }
+    }
+
+    static startDateNotInPast(reservation) {
+        const now = new Date();
+        const startDate = new Date(reservation.start_date);
+
+        if (startDate < now) {
+            throw new Error("Start date cannot be in the past");
+        }
+    }
+
+    static reservationCannotExceedOneWeek(reservation) {
+        const startDate = new Date(reservation.start_date);
+        const endDate = new Date(reservation.end_date);
+
+        const diffTime = Math.abs(endDate - startDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 7) {
+            throw new Error("Reservation cannot exceed one week");
         }
     }
 
