@@ -6,7 +6,6 @@
 </head>
 <body>
   <h2>Create Reservation</h2>
-
   <form id="reservationForm">
     <label>Item Type:</label>
     <select id="itemType" required>
@@ -17,6 +16,7 @@
 
     <label>Select Item:</label>
     <select id="itemSelect" required>
+      <option value="" disabled selected> Select an item type</option>
       <option value="">Loading items...</option>
     </select>
 
@@ -29,7 +29,16 @@
     <button type="submit">Reserve</button>
   </form>
 
+
+
+  <div id="calendar"></div>
   <p id="message"></p>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
+  <script src="calendar.js" defer></script>
+  
+
+
 
   <script>
     const form = document.getElementById("reservationForm");
@@ -111,6 +120,10 @@
     });
   </script>
   <script src="/components/navbar.js"></script>
+
+
+
+
 </body>
 </html>
 

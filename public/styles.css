@@ -264,3 +264,9 @@ button:active {
 .dashboard-actions .btn-link {
   min-width: 180px;
 }
+
+#calendar {
+  width: 90%;
+  max-width: 1100px;
+  margin: 40px auto;
+}

@@ -167,7 +167,7 @@ app.get("/dashboard-stats", requireAuth, async (req, res) => {
 });
 
 
-app.get("/inventory/available", requireAuth, async (req, res) => {
+app.get("/inventory/available", async (req, res) => { //took out requestAuth
   try {
     const { type, start, end } = req.query;
 
@@ -216,6 +216,11 @@ app.get("/inventory/available", requireAuth, async (req, res) => {
   }
 });
 
+
+//Availability Route
+
+const availabilityRoutes = require('./reservation/AvailabilityRoutes');
+app.use('/availability', requireAuth, availabilityRoutes)
 
 app.post("/availability-slots", requireAdmin, async (req, res) => {
   try {
