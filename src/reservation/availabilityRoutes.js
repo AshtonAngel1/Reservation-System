@@ -4,13 +4,13 @@ const availabilityService = require('./availabilityService');
 
 router.get('/', async (req, res) => {
   try {
-    const { item_id, date } = req.query;
+    const { item_id, start_date, end_date } = req.query;
 
-    if (!item_id || !date) {
+    if (!item_id || !start_date || !end_date) {
       return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    const slots = await availabilityService.getAvailability(item_id, date);
+    const slots = await availabilityService.getAvailability(item_id, start_date, end_date);
     res.json({ availableSlots: slots });
   } catch (err) {
     console.error(err);

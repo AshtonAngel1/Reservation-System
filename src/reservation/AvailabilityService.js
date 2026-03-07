@@ -3,8 +3,8 @@ const db = require('../db')
 
 // Define possible booking hours
 const WORKING_HOURS = {
-  start: 9,  // 9 AM
-  end: 17   // 5 PM
+  start: 0,  
+  end: 24   
 };
 
 // Generate 1-hour slots for a given date
@@ -18,20 +18,6 @@ function generateTimeSlots(date) {
   return slots;
 }
 
-// async function getAvailability (itemId, date) {
-
-//   const reservations = await db.query('SELECT start_date, end_date FROM reservations where item_id = ? AND DATE(start_date) = ?', [itemId, date]);
-    
-//   const allSlots = generateTimeSlots(date);
-//   const availableSlots = allSlots.filter(slot => {
-//   return !reservations.some(res =>
-//     slot.start < res.end_date && res.start_date < slot.end
-//     );
-//   });
-
-// return availableSlots;
-// }
-
 function formatDateForFullCalendar(dateObj) {
   const year = dateObj.getFullYear();
   const month = String(dateObj.getMonth() + 1).padStart(2, '0'); // months are 0-indexed
@@ -43,33 +29,31 @@ function formatDateForFullCalendar(dateObj) {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
 
-async function getAvailability(item_id, date) {
-  // Ensure date is in YYYY-MM-DD format
-  const dateOnly = date.split('T')[0];
+async function getAvailability(item_id, start_date, end_date) {
+  // Ensure dates are YYYY-MM-DD
+  const startDateOnly = start_date.split('T')[0];
+  const endDateOnly = end_date.split('T')[0];
 
-  // Get all slots for this item on that date
+  // Get all slots within the range (inclusive of start and end)
   const [slots] = await db.query(
     `SELECT start_time, end_time
      FROM availability_slots
-     WHERE item_id = ? AND DATE(start_time) = ?`,
-    [item_id, dateOnly]
+     WHERE item_id = ? AND start_time >= ? AND start_time < ?`,
+    [item_id, startDateOnly + ' 00:00:00', endDateOnly + ' 23:59:59']
   );
 
-  if (slots.length === 0) {
-    console.log('No availability slots in DB for this item/date');
-    
+  if (!slots.length) {
+    console.log('No availability slots in DB for this item/date range');
     return [];
   }
 
-  // Get reservations for this item on that date
+  // Get all reservations overlapping the range
   const [reservations] = await db.query(
     `SELECT start_date, end_date
      FROM reservations
-     WHERE item_id = ? AND DATE(start_date) = ?`,
-    [item_id, dateOnly]
+     WHERE item_id = ? AND end_date >= ? AND start_date <= ?`,
+    [item_id, startDateOnly + ' 00:00:00', endDateOnly + ' 23:59:59']
   );
-
-  
 
   // Filter slots that overlap any reservation
   const availableSlots = slots.filter(slot => {
@@ -83,23 +67,12 @@ async function getAvailability(item_id, date) {
     });
   });
 
-  
-
-  const result = availableSlots.map(slot => ({
-  start: formatDateForFullCalendar(slot.start_time),
-  end: formatDateForFullCalendar(slot.end_time)
-}));
-
-console.log(result);
-return result;
+  return availableSlots.map(slot => ({
+    start: formatDateForFullCalendar(slot.start_time),
+    end: formatDateForFullCalendar(slot.end_time)
+  }));
 }
 
 module.exports = { getAvailability };
-
-
-
-
-
-module.exports = {getAvailability};
 
 
