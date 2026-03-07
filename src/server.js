@@ -219,7 +219,7 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
 
 //Availability Route
 
-const availabilityRoutes = require('./reservation/AvailabilityRoutes');
+const availabilityRoutes = require('./reservation/availabilityRoutes');
 app.use('/availability', requireAuth, availabilityRoutes)
 
 app.post("/availability-slots", requireAdmin, async (req, res) => {
