@@ -17,17 +17,17 @@ router.get("/", requireAuth, async (req, res) => {
 
     // get user info + profile
     const [userResult] = await db.query(
-      `SELECT u.id, u.email, 
-              up.bio, 
-              up.profile_picture
-       FROM users u
-       LEFT JOIN user_profiles up
-       ON u.id = up.user_id
-       WHERE u.id = ?`,
+      `SELECT bio, profile_picture 
+       FROM user_profiles 
+       WHERE user_id = ?`,
       [userId]
     );
-
-    const user = userResult[0];
+    
+    let user = userResult[0] || { bio: "", profile_picture: "/components/profile-pic.png" };
+    
+    // include email/id from session
+    user.id = userId;
+    user.email = req.session.user.email;
 
     // get reservations
     const [reservations] = await db.query(
