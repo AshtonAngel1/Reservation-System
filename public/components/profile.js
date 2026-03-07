@@ -20,16 +20,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const data = await res.json();
-        const { user, past, today, future } = data;
-
+        const user = data;
+        
         // populate profile
         userEmail.textContent = user.email;
         userId.textContent = user.id;
         bioInput.value = user.bio || "";
 
-        if (user.profile_picture) {
+        // set profile picture safely
+        if (user.profile_picture && user.profile_picture !== "") {
             profilePic.src = user.profile_picture;
+        } else {
+            profilePic.src = "/components/profile-pic.png"; // default placeholder
         }
+        
+        // if (user.profile_picture) {
+        //     profilePic.src = user.profile_picture;
+        // }
 
         // render reservations
         function renderReservations(list, container) {
