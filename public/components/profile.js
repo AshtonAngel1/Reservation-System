@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
 
-        const res = await fetch("/profile");
+        const res = await fetch("/api/profile");
 
         if (!res.ok) {
             throw new Error("Failed to fetch profile");
@@ -98,3 +98,4 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
 });
+
