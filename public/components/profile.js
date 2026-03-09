@@ -21,6 +21,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const data = await res.json();
         const user = data;
+
+        // fetch reservations
+        const resReservations = await fetch("/api/profile/reservations");
+        if (!resReservations.ok) {
+            throw new Error("Failed to fetch reservations");
+        }
+
+        const reservations = await resReservations.json();
+        const past = reservations.past || [];
+        const today = reservations.today || [];
+        const future = reservations.future || [];
         
         // populate profile
         userEmail.textContent = user.email;
@@ -72,8 +83,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             const newBio = bioInput.value.trim();
 
-            const res = await fetch("/profile/bio", {
-                method: "POST",
+            const res = await fetch("/api/profile/bio", {
+                method: "PUT",
                 headers: {
                     "Content-Type": "application/json"
                 },
@@ -98,4 +109,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
 });
+
 
