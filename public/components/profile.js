@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const userEmail = document.getElementById("userEmail");
     const userId = document.getElementById("userId");
-    const profilePic = document.getElementById("profile-picture");
+    const profilePic = document.getElementById("profilePicture");
 
     try {
 
