@@ -9,7 +9,6 @@
 <h2>Edit Reservation</h2>
 
 <p id="message"></p>
-
 <div id="errorBox" style="color:red;"></div>
 
 <form id="editForm">
@@ -22,52 +21,94 @@
   <select id="itemSelect"></select>
 
   <label>Start Date:</label>
-  <input type="datetime-local" id="startDate">
+  <input type="datetime-local" id="startDate" required>
 
   <label>End Date:</label>
-  <input type="datetime-local" id="endDate">
+  <input type="datetime-local" id="endDate" required>
 
   <button type="submit">Update Reservation</button>
 </form>
 
 <script>
-
 const urlParams = new URLSearchParams(window.location.search);
 const reservationId = urlParams.get("id");
 
-const itemTypeSelect = document.getElementById("itemType");
+const itemTypeSpan = document.getElementById("itemType");
 const itemSelect = document.getElementById("itemSelect");
+const startInput = document.getElementById("startDate");
+const endInput = document.getElementById("endDate");
+const message = document.getElementById("message");
+const errorBox = document.getElementById("errorBox");
+
+let currentReservation = null;
 
 document.getElementById("reservationId").value = reservationId;
 
-itemTypeSelect.addEventListener("change", loadItems);
-document.getElementById("startDate").addEventListener("change", loadItems);
-document.getElementById("endDate").addEventListener("change", loadItems);
+startInput.addEventListener("change", loadItems);
+endInput.addEventListener("change", loadItems);
 
 if (!reservationId) {
-  document.getElementById("errorBox").textContent = "Reservation ID missing";
+  errorBox.textContent = "Reservation ID missing";
   throw new Error("Missing reservation id");
 }
 
-// Load items
-async function loadItems() {
-  const type = document.getElementById("itemType").textContent;
-  const start = document.getElementById("startDate").value;
-  const end = document.getElementById("endDate").value;
-
-  const res = await fetch(`/inventory/available?type=${type}&start=${start}&end=${end}`);
-  const items = await res.json();
-
-  itemSelect.innerHTML = "";
-
-  items.forEach(item => {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = item.name;
-    itemSelect.appendChild(option);
-  });
+function addOption(value, text, selected = false) {
+  const option = document.createElement("option");
+  option.value = String(value);
+  option.textContent = text;
+  if (selected) option.selected = true;
+  itemSelect.appendChild(option);
 }
 
+async function loadItems() {
+  try {
+    const type = itemTypeSpan.textContent.trim();
+    const start = startInput.value;
+    const end = endInput.value;
+
+    if (!type || !start || !end) return;
+
+    const res = await fetch(`/inventory/available?type=${encodeURIComponent(type)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
+    const items = await res.json();
+
+    itemSelect.innerHTML = "";
+
+    if (!Array.isArray(items) || items.length === 0) {
+      // keep current reserved item as fallback option
+      if (currentReservation) {
+        addOption(
+          currentReservation.item_id,
+          `${currentReservation.item_name} (current selection)`,
+          true
+        );
+      } else {
+        addOption("", "No items available", true);
+      }
+      return;
+    }
+
+    items.forEach(item => {
+      addOption(item.id, item.name, false);
+    });
+
+    // ensure current item is selectable even if not in available list
+    if (currentReservation) {
+      const exists = items.some(i => Number(i.id) === Number(currentReservation.item_id));
+      if (!exists) {
+        addOption(
+          currentReservation.item_id,
+          `${currentReservation.item_name} (current selection)`,
+          true
+        );
+      } else {
+        itemSelect.value = String(currentReservation.item_id);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    errorBox.textContent = "Failed to load available items.";
+  }
+}
 
 async function loadReservation() {
   try {
@@ -75,20 +116,19 @@ async function loadReservation() {
     const reservation = await res.json();
 
     if (!res.ok) {
-      document.getElementById("errorBox").textContent = reservation.error;
+      errorBox.textContent = reservation.error || "Failed to load reservation";
       return;
     }
 
-    document.getElementById("itemType").textContent = reservation.item_type;
-    document.getElementById("startDate").value = reservation.start_date.slice(0, 16);
-    document.getElementById("endDate").value = reservation.end_date.slice(0, 16);
+    currentReservation = reservation;
+    itemTypeSpan.textContent = reservation.item_type;
+    startInput.value = reservation.start_date.slice(0, 16);
+    endInput.value = reservation.end_date.slice(0, 16);
 
-    await loadItems()
-
-    itemSelect.value = reservation.item_id;
-
+    await loadItems();
   } catch (err) {
-    document.getElementById("errorBox").textContent = "Failed to load reservation";
+    console.error(err);
+    errorBox.textContent = "Failed to load reservation";
   }
 }
 
@@ -96,11 +136,28 @@ loadReservation();
 
 document.getElementById("editForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  errorBox.textContent = "";
+  message.textContent = "";
+
+  const startDate = new Date(startInput.value);
+  const endDate = new Date(endInput.value);
+  const now = new Date();
+  now.setSeconds(0, 0);
+
+  if (startDate < now) {
+    message.textContent = "Start date cannot be in the past";
+    return;
+  }
+
+  if (endDate <= startDate) {
+    message.textContent = "End date must be after start date";
+    return;
+  }
 
   const reservation = {
     item_id: itemSelect.value,
-    start_date: document.getElementById("startDate").value,
-    end_date: document.getElementById("endDate").value
+    start_date: startInput.value,
+    end_date: endInput.value
   };
 
   const response = await fetch(`/reservations/${reservationId}`, {
@@ -111,21 +168,17 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
 
   const data = await response.json();
 
-  const message = document.getElementById("message");
-
   if (response.ok) {
     message.textContent = "Reservation updated successfully";
-
     setTimeout(() => {
       window.location.href = "/my_reservations_page";
-    }, 1500);
+    }, 1200);
   } else {
-    message.textContent = data.error;
+    message.textContent = data.error || "Failed to update reservation";
   }
 });
-
 </script>
-<script src="/components/navbar.js"></script>
 
+<script src="/components/navbar.js"></script>
 </body>
 </html>
