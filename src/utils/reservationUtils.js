@@ -33,6 +33,7 @@ class reservationUtils {
 
     static startDateNotInPast(reservation) {
         const now = new Date();
+        now.setSeconds(0, 0); // minute precision to avoid same-minute false negatives
         const startDate = new Date(reservation.start_date);
 
         if (startDate < now) {
@@ -64,8 +65,8 @@ class reservationUtils {
     static async checkAvailabilityWindow(reservation) {
         let query = "SELECT * FROM availability_slots WHERE item_id = ? AND start_time <= ? AND end_time >= ?";
         let params = [
-            reservation.item_id, 
-            reservation.start_date, 
+            reservation.item_id,
+            reservation.start_date,
             reservation.end_date
         ];
 
@@ -85,7 +86,7 @@ class reservationUtils {
     // For view-reservation.html
     getReservations() {
         // Get all reservations from the database
-        
+
     }
 }
 
