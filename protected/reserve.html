@@ -36,7 +36,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
   <script src="calendar.js" defer></script>
-  
+
 
 
 
@@ -83,6 +83,7 @@
       const message = document.getElementById("message");
 
       const now = new Date();
+      now.setSeconds(0, 0);
 
       if (startDate < now) {
         message.textContent = "Start date cannot be in the past";
@@ -126,4 +127,3 @@
 
 </body>
 </html>
-
