@@ -64,7 +64,7 @@
   <h1>User Profile</h1>
 
   <div class="profile-header">
-    <img id="profile-picture" src="/components/profile-pic.png" alt="Profile Picture">
+    <img id="profilePicture" src="/components/profile-pic.png" alt="Profile Picture">
 
     <div>
       <p><strong>Email:</strong> <span id="userEmail"></span></p>
@@ -78,6 +78,16 @@
     <textarea id="bioInput" placeholder="Enter a short biography..."></textarea>
 
     <button id="updateBioBtn">Save Biography</button>
+
+    <div style="margin-top:10px;">
+      <input
+        id="profilePictureUrl"
+        type="url"
+        placeholder="Paste image URL (https://...)"
+        style="width:100%; padding:8px; margin-bottom:6px;"
+      />
+      <button id="updatePictureBtn" type="button">Save Profile Picture</button>
+    </div>
 
     <p id="bioStatus"></p>
   </div>
