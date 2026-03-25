@@ -31,6 +31,7 @@ class reservationUtils {
         }
     }
 
+    
     static startDateNotInPast(reservation) {
         const now = new Date();
         const startDate = new Date(reservation.start_date);
@@ -39,6 +40,7 @@ class reservationUtils {
             throw new Error("Start date cannot be in the past");
         }
     }
+
 
     static reservationCannotExceedOneWeek(reservation) {
         const startDate = new Date(reservation.start_date);
@@ -52,6 +54,7 @@ class reservationUtils {
         }
     }
 
+
     static async getAllUserReservations(user_id) {
         const [reservations] = await db.query(
             "SELECT * FROM reservations WHERE user_id = ?",
@@ -60,6 +63,7 @@ class reservationUtils {
 
         return reservations;
     }
+
 
     static async checkAvailabilityWindow(reservation) {
         let query = "SELECT * FROM availability_slots WHERE item_id = ? AND start_time <= ? AND end_time >= ?";
@@ -81,6 +85,7 @@ class reservationUtils {
         }
     }
 
+
     static toMySQLDatetime(isoString) {
         const date = new Date(isoString);
         
@@ -90,6 +95,19 @@ class reservationUtils {
             String(date.getUTCHours()).padStart(2, '0') + ':' +
             String(date.getUTCMinutes()).padStart(2, '0') + ':' +
             String(date.getUTCSeconds()).padStart(2, '0');
+    }
+
+
+    static toLocalInputValue(utcString) {
+        const date = new Date(utcString);
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
     }
 
 

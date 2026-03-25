@@ -621,11 +621,14 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
     // reuse validation pipeline
     await reservation.validateReservation();
 
+    const startIso = reservationUtils.toMySQLDatetime(reservation.start_date);
+    const endIso = reservationUtils.toMySQLDatetime(reservation.end_date);
+
     await db.query(
       `UPDATE reservations
        SET item_id = ?, start_date = ?, end_date = ?
        WHERE id = ?`,
-      [reservation.item_id, reservation.start_date, reservation.end_date, reservationId]
+      [reservation.item_id, startIso, endIso, reservationId]
     );
 
     res.json({ message: "Reservation updated successfully" });
