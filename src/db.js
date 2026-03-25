@@ -7,7 +7,8 @@ const pool = mysql.createPool({
   database: 'reservation_system',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  timezone: 'Z' // Set timezone to UTC
 });
 
 // Connect and check

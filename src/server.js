@@ -220,6 +220,7 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
 //Availability Route
 
 const availabilityRoutes = require('./reservation/availabilityRoutes');
+const reservationUtils = require('./utils/reservationUtils');
 app.use('/availability', requireAuth, availabilityRoutes)
 
 app.post("/availability-slots", requireAdmin, async (req, res) => {
@@ -234,10 +235,13 @@ app.post("/availability-slots", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "End time must be after start time" });
     }
 
+    const startIso = reservationUtils.toMySQLDatetime(start_time);
+    const endIso = reservationUtils.toMySQLDatetime(end_time);
+
     await db.query(
       `INSERT INTO availability_slots (item_id, start_time, end_time)
        VALUES (?, ?, ?)`,
-      [item_id, start_time, end_time]
+      [item_id, startIso, endIso]
     );
 
     res.status(201).json({ message: "Availability slot created" });
@@ -533,6 +537,7 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
   }
 });
 
+// Make Reservation Route
 app.post("/reservations", requireAuth, async (req, res) => {
   try {
 
