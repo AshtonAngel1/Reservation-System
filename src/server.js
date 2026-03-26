@@ -104,13 +104,14 @@ app.post("/login", async (req, res) => {
     req.session.user = loggedInUser;
 
     return res.json({
-      message: "Login successful"
+      message: "Login successful",
+      is_admin: loggedInUser.is_admin
     });
 
   } catch(err) {
     console.error(err);
     return res.status(401).json({ 
-      message: err.message 
+      error: err.message 
     });
   }
 });
