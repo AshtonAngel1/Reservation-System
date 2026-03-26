@@ -170,7 +170,7 @@ app.get("/dashboard-stats", requireAuth, async (req, res) => {
 
 app.get("/inventory/available", async (req, res) => { //took out requestAuth
   try {
-    const { type, start, end } = req.query;
+    const { type, start, end, excludeReservationId } = req.query;
 
     if (!type) {
       return res.status(400).json({ error: "Missing item type" });
@@ -188,12 +188,13 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
           ON i.id = r.item_id
           AND r.start_date < ?
           AND r.end_date > ?
+          AND (? IS NULL OR r.id != ?)
         WHERE i.type = ?
         AND i.active = TRUE
         AND r.id IS NULL
       `;
 
-      params = [end, start, type];
+      params = [end, start, excludeReservationId || null, excludeReservationId || null, type];
 
     } else {
 

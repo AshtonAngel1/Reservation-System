@@ -18,8 +18,10 @@
   <label>Item Type:</label>
   <span id="itemType"></span>
 
-  <label>Select Item:</label>
-  <select id="itemSelect"></select>
+  <label>Item:</label>
+  <span id="itemName"></span>
+
+  <input type="hidden" id="itemSelect">
 
   <label>Start Date:</label>
   <input type="datetime-local" id="startDate">
@@ -40,10 +42,6 @@ const itemSelect = document.getElementById("itemSelect");
 
 document.getElementById("reservationId").value = reservationId;
 
-itemTypeSelect.addEventListener("change", loadItems);
-document.getElementById("startDate").addEventListener("change", loadItems);
-document.getElementById("endDate").addEventListener("change", loadItems);
-
 if (!reservationId) {
   document.getElementById("errorBox").textContent = "Reservation ID missing";
   throw new Error("Missing reservation id");
@@ -62,28 +60,6 @@ function toLocalInputValue(utcString) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-// Load items
-async function loadItems() {
-  const type = document.getElementById("itemType").textContent;
-  const startRaw = document.getElementById("startDate").value;
-  const endRaw = document.getElementById("endDate").value;
-
-  const start = startRaw ? new Date(startRaw).toISOString() : "";
-  const end = endRaw ? new Date(endRaw).toISOString() : "";
-
-  const res = await fetch(`/inventory/available?type=${type}&start=${start}&end=${end}`);
-  const items = await res.json();
-
-  itemSelect.innerHTML = "";
-
-  items.forEach(item => {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = item.name;
-    itemSelect.appendChild(option);
-  });
-}
-
 
 async function loadReservation() {
   try {
@@ -96,12 +72,16 @@ async function loadReservation() {
     }
 
     document.getElementById("itemType").textContent = reservation.item_type;
+
+    if (!reservation.item_type) {
+      throw new Error("Missing item_type from backend")
+    }
+
+    document.getElementById("itemName").textContent = reservation.item_name;
+    itemSelect.value = reservation.item_id;
+    
     document.getElementById("startDate").value = toLocalInputValue(reservation.start_date);
     document.getElementById("endDate").value = toLocalInputValue(reservation.end_date);
-
-    await loadItems()
-
-    itemSelect.value = reservation.item_id;
 
   } catch (err) {
     document.getElementById("errorBox").textContent = "Failed to load reservation";
