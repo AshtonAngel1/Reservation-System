@@ -152,7 +152,7 @@ app.get("/dashboard-stats", requireAuth, async (req, res) => {
     );
 
     const [upcomingResult] = await db.query(
-      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
+      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= UTC_TIMESTAMP()",
       [userId]
     );
 
@@ -509,6 +509,7 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
 });
 
 //ADMIN VIEW ALL USERS
+// Can add active reservations to the query if needed
 app.get("/admin/users", requireAdmin, async (req, res) => {
   try {
 
@@ -520,9 +521,9 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
 
         COUNT(r.id) AS total_reservations,
 
-        SUM(CASE WHEN r.end_date < NOW() THEN 1 ELSE 0 END) AS past_reservations,
+        SUM(CASE WHEN r.end_date < UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS past_reservations,
 
-        SUM(CASE WHEN r.start_date > NOW() THEN 1 ELSE 0 END) AS upcoming_reservations
+        SUM(CASE WHEN r.start_date > UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS upcoming_reservations
 
       FROM users u
       LEFT JOIN reservations r ON u.id = r.user_id
