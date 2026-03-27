@@ -73,11 +73,6 @@ class reservationUtils {
             reservation.end_date
         ];
 
-        if (reservation.id) {
-            query += " AND id != ?";
-            params.push(reservation.id);
-        }
-
         const [rows] = await db.query(query, params);
 
         if (rows.length === 0) {
