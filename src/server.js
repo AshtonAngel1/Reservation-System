@@ -399,16 +399,27 @@ app.delete("/people/:id", requireAdmin, async (req,res)=>{
 // Get profile information
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
-    const [users] = await db.query(
-      "SELECT id, email FROM users WHERE id = ?",
+    const [rows] = await db.query(
+      `SELECT 
+         u.id,
+         u.email,
+         up.bio,
+         up.profile_picture
+       FROM users u
+       LEFT JOIN user_profiles up ON up.user_id = u.id
+       WHERE u.id = ?`,
       [req.session.user.id]
     );
 
-    if (users.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json(users[0]);
+    const user = rows[0];
+    user.bio = user.bio || "";
+    user.profile_picture = user.profile_picture || "/components/profile-pic.png";
+
+    res.json(user);
 
   } catch (err) {
     console.error(err);
@@ -416,17 +427,43 @@ app.get("/api/profile", requireAuth, async (req, res) => {
   }
 });
 
-// Update biography (Users table doesn't have bio column would need to use user_profiles table)
+// Update biography
 app.put("/api/profile/bio", requireAuth, async (req, res) => {
   try {
     const { bio } = req.body;
 
     await db.query(
-      "UPDATE users SET bio = ? WHERE id = ?",
-      [bio, req.session.user.id]
+      `INSERT INTO user_profiles (user_id, bio)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE bio = VALUES(bio)`,
+      [req.session.user.id, bio || ""]
     );
 
     res.json({ message: "Biography updated successfully." });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Update profile picture (URL)
+app.put("/api/profile/picture", requireAuth, async (req, res) => {
+  try {
+    const { profile_picture } = req.body;
+
+    if (!profile_picture || !profile_picture.trim()) {
+      return res.status(400).json({ error: "Profile picture URL is required" });
+    }
+
+    await db.query(
+      `INSERT INTO user_profiles (user_id, profile_picture)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE profile_picture = VALUES(profile_picture)`,
+      [req.session.user.id, profile_picture.trim()]
+    );
+
+    res.json({ message: "Profile picture updated successfully." });
 
   } catch (err) {
     console.error(err);
@@ -486,10 +523,10 @@ app.get("/my-reservations", requireAuth, async (req, res) => {
 
 app.get("/admin/reservations", requireAdmin, async (req, res) => {
   try {
-
     const [reservations] = await db.query(`
       SELECT 
         r.id,
+        r.item_id,
         i.name AS item_name,
         i.type AS item_type,
         u.email AS user_email,
@@ -593,7 +630,6 @@ app.get("/reservations/:id", requireAuth, async (req, res) => {
 //Edit Reservation route
 app.put("/reservations/:id", requireAuth, async (req, res) => {
   try {
-
     const reservationId = req.params.id;
     const userId = req.session.user.id;
 
@@ -608,11 +644,12 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
     }
 
     const now = new Date();
+    now.setSeconds(0, 0);
     const startTime = new Date(existing[0].start_date);
 
     if (startTime < now) {
       return res.status(400).json({ error: "Cannot edit past reservations" });
-    };
+    }
 
     const reservation = new ReservationImpl(
       req.body.item_id,
@@ -620,6 +657,9 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
       req.body.start_date,
       req.body.end_date
     );
+
+    // IMPORTANT: set id so conflict check can exclude itself
+    reservation.id = reservationId;
 
     // reuse validation pipeline
     await reservation.validateReservation();

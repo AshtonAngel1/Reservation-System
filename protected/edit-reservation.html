@@ -9,7 +9,6 @@
 <h2>Edit Reservation</h2>
 
 <p id="message"></p>
-
 <div id="errorBox" style="color:red;"></div>
 
 <form id="editForm">
@@ -24,26 +23,31 @@
   <input type="hidden" id="itemSelect">
 
   <label>Start Date:</label>
-  <input type="datetime-local" id="startDate">
+  <input type="datetime-local" id="startDate" required>
 
   <label>End Date:</label>
-  <input type="datetime-local" id="endDate">
+  <input type="datetime-local" id="endDate" required>
 
   <button type="submit">Update Reservation</button>
 </form>
 
 <script>
-
 const urlParams = new URLSearchParams(window.location.search);
 const reservationId = urlParams.get("id");
 
-const itemTypeSelect = document.getElementById("itemType");
+const itemTypeSpan = document.getElementById("itemType");
 const itemSelect = document.getElementById("itemSelect");
+const startInput = document.getElementById("startDate");
+const endInput = document.getElementById("endDate");
+const message = document.getElementById("message");
+const errorBox = document.getElementById("errorBox");
+
+let currentReservation = null;
 
 document.getElementById("reservationId").value = reservationId;
 
 if (!reservationId) {
-  document.getElementById("errorBox").textContent = "Reservation ID missing";
+  errorBox.textContent = "Reservation ID missing";
   throw new Error("Missing reservation id");
 }
 
@@ -60,14 +64,13 @@ function toLocalInputValue(utcString) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-
 async function loadReservation() {
   try {
     const res = await fetch(`/reservations/${reservationId}`);
     const reservation = await res.json();
 
     if (!res.ok) {
-      document.getElementById("errorBox").textContent = reservation.error;
+      errorBox.textContent = reservation.error || "Failed to load reservation";
       return;
     }
 
@@ -84,7 +87,8 @@ async function loadReservation() {
     document.getElementById("endDate").value = toLocalInputValue(reservation.end_date);
 
   } catch (err) {
-    document.getElementById("errorBox").textContent = "Failed to load reservation";
+    console.error(err);
+    errorBox.textContent = "Failed to load reservation";
   }
 }
 
@@ -92,6 +96,23 @@ loadReservation();
 
 document.getElementById("editForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  errorBox.textContent = "";
+  message.textContent = "";
+
+  const startDate = new Date(startInput.value);
+  const endDate = new Date(endInput.value);
+  const now = new Date();
+  now.setSeconds(0, 0);
+
+  if (startDate < now) {
+    message.textContent = "Start date cannot be in the past";
+    return;
+  }
+
+  if (endDate <= startDate) {
+    message.textContent = "End date must be after start date";
+    return;
+  }
 
   const startDate = new Date(document.getElementById("startDate").value);
   const endDate = new Date(document.getElementById("endDate").value);
@@ -110,21 +131,17 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
 
   const data = await response.json();
 
-  const message = document.getElementById("message");
-
   if (response.ok) {
     message.textContent = "Reservation updated successfully";
-
     setTimeout(() => {
       window.location.href = "/my_reservations_page";
-    }, 1500);
+    }, 1200);
   } else {
-    message.textContent = data.error;
+    message.textContent = data.error || "Failed to update reservation";
   }
 });
-
 </script>
-<script src="/components/navbar.js"></script>
 
+<script src="/components/navbar.js"></script>
 </body>
 </html>
