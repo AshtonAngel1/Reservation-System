@@ -35,7 +35,6 @@
 const urlParams = new URLSearchParams(window.location.search);
 const reservationId = urlParams.get("id");
 
-const itemTypeSpan = document.getElementById("itemType");
 const itemSelect = document.getElementById("itemSelect");
 const startInput = document.getElementById("startDate");
 const endInput = document.getElementById("endDate");
@@ -83,8 +82,8 @@ async function loadReservation() {
     document.getElementById("itemName").textContent = reservation.item_name;
     itemSelect.value = reservation.item_id;
     
-    document.getElementById("startDate").value = toLocalInputValue(reservation.start_date);
-    document.getElementById("endDate").value = toLocalInputValue(reservation.end_date);
+    startInput.value = toLocalInputValue(reservation.start_date);
+    endInput.value = toLocalInputValue(reservation.end_date);
 
   } catch (err) {
     console.error(err);
@@ -98,24 +97,9 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   errorBox.textContent = "";
   message.textContent = "";
-
+  
   const startDate = new Date(startInput.value);
   const endDate = new Date(endInput.value);
-  const now = new Date();
-  now.setSeconds(0, 0);
-
-  if (startDate < now) {
-    message.textContent = "Start date cannot be in the past";
-    return;
-  }
-
-  if (endDate <= startDate) {
-    message.textContent = "End date must be after start date";
-    return;
-  }
-
-  const startDate = new Date(document.getElementById("startDate").value);
-  const endDate = new Date(document.getElementById("endDate").value);
 
   const reservation = {
     item_id: itemSelect.value,
@@ -136,6 +120,7 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
     setTimeout(() => {
       window.location.href = "/my_reservations_page";
     }, 1200);
+    
   } else {
     message.textContent = data.error || "Failed to update reservation";
   }
