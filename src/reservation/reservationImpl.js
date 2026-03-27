@@ -25,9 +25,12 @@ class ReservationImpl {
     // Add the reservation to the database
     async addReservation() {
         try {
+            const startIso = reservationUtils.toMySQLDatetime(this.start_date);
+            const endIso = reservationUtils.toMySQLDatetime(this.end_date);
+
             const [result] = await db.query(
                 "INSERT INTO reservations (item_id, user_id, start_date, end_date) VALUES (?, ?, ?, ?)",
-                [this.item_id, this.user_id, this.start_date, this.end_date]
+                [this.item_id, this.user_id, startIso, endIso]
             );
 
         } catch (error) {

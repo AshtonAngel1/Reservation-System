@@ -17,8 +17,10 @@
   <label>Item Type:</label>
   <span id="itemType"></span>
 
-  <label>Select Item:</label>
-  <select id="itemSelect"></select>
+  <label>Item:</label>
+  <span id="itemName"></span>
+
+  <input type="hidden" id="itemSelect">
 
   <label>Start Date:</label>
   <input type="datetime-local" id="startDate" required>
@@ -44,70 +46,22 @@ let currentReservation = null;
 
 document.getElementById("reservationId").value = reservationId;
 
-startInput.addEventListener("change", loadItems);
-endInput.addEventListener("change", loadItems);
-
 if (!reservationId) {
   errorBox.textContent = "Reservation ID missing";
   throw new Error("Missing reservation id");
 }
 
-function addOption(value, text, selected = false) {
-  const option = document.createElement("option");
-  option.value = String(value);
-  option.textContent = text;
-  if (selected) option.selected = true;
-  itemSelect.appendChild(option);
-}
+// Function to convert UTC datetime string to local datetime input format
+function toLocalInputValue(utcString) {
+  const date = new Date(utcString);
 
-async function loadItems() {
-  try {
-    const type = itemTypeSpan.textContent.trim();
-    const start = startInput.value;
-    const end = endInput.value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
 
-    if (!type || !start || !end) return;
-
-    const res = await fetch(`/inventory/available?type=${encodeURIComponent(type)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
-    const items = await res.json();
-
-    itemSelect.innerHTML = "";
-
-    if (!Array.isArray(items) || items.length === 0) {
-      // keep current reserved item as fallback option
-      if (currentReservation) {
-        addOption(
-          currentReservation.item_id,
-          `${currentReservation.item_name} (current selection)`,
-          true
-        );
-      } else {
-        addOption("", "No items available", true);
-      }
-      return;
-    }
-
-    items.forEach(item => {
-      addOption(item.id, item.name, false);
-    });
-
-    // ensure current item is selectable even if not in available list
-    if (currentReservation) {
-      const exists = items.some(i => Number(i.id) === Number(currentReservation.item_id));
-      if (!exists) {
-        addOption(
-          currentReservation.item_id,
-          `${currentReservation.item_name} (current selection)`,
-          true
-        );
-      } else {
-        itemSelect.value = String(currentReservation.item_id);
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    errorBox.textContent = "Failed to load available items.";
-  }
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 async function loadReservation() {
@@ -120,12 +74,18 @@ async function loadReservation() {
       return;
     }
 
-    currentReservation = reservation;
-    itemTypeSpan.textContent = reservation.item_type;
-    startInput.value = reservation.start_date.slice(0, 16);
-    endInput.value = reservation.end_date.slice(0, 16);
+    document.getElementById("itemType").textContent = reservation.item_type;
 
-    await loadItems();
+    if (!reservation.item_type) {
+      throw new Error("Missing item_type from backend")
+    }
+
+    document.getElementById("itemName").textContent = reservation.item_name;
+    itemSelect.value = reservation.item_id;
+    
+    document.getElementById("startDate").value = toLocalInputValue(reservation.start_date);
+    document.getElementById("endDate").value = toLocalInputValue(reservation.end_date);
+
   } catch (err) {
     console.error(err);
     errorBox.textContent = "Failed to load reservation";
@@ -154,10 +114,13 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
     return;
   }
 
+  const startDate = new Date(document.getElementById("startDate").value);
+  const endDate = new Date(document.getElementById("endDate").value);
+
   const reservation = {
     item_id: itemSelect.value,
-    start_date: startInput.value,
-    end_date: endInput.value
+    start_date: startDate.toISOString(),
+    end_date: endDate.toISOString()
   };
 
   const response = await fetch(`/reservations/${reservationId}`, {

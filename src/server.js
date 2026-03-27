@@ -104,13 +104,14 @@ app.post("/login", async (req, res) => {
     req.session.user = loggedInUser;
 
     return res.json({
-      message: "Login successful"
+      message: "Login successful",
+      is_admin: loggedInUser.is_admin
     });
 
   } catch(err) {
     console.error(err);
     return res.status(401).json({ 
-      message: err.message 
+      error: err.message 
     });
   }
 });
@@ -151,7 +152,7 @@ app.get("/dashboard-stats", requireAuth, async (req, res) => {
     );
 
     const [upcomingResult] = await db.query(
-      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= NOW()",
+      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= UTC_TIMESTAMP()",
       [userId]
     );
 
@@ -169,7 +170,7 @@ app.get("/dashboard-stats", requireAuth, async (req, res) => {
 
 app.get("/inventory/available", async (req, res) => { //took out requestAuth
   try {
-    const { type, start, end } = req.query;
+    const { type, start, end, excludeReservationId } = req.query;
 
     if (!type) {
       return res.status(400).json({ error: "Missing item type" });
@@ -187,12 +188,13 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
           ON i.id = r.item_id
           AND r.start_date < ?
           AND r.end_date > ?
+          AND (? IS NULL OR r.id != ?)
         WHERE i.type = ?
         AND i.active = TRUE
         AND r.id IS NULL
       `;
 
-      params = [end, start, type];
+      params = [end, start, excludeReservationId || null, excludeReservationId || null, type];
 
     } else {
 
@@ -220,6 +222,7 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
 //Availability Route
 
 const availabilityRoutes = require('./reservation/availabilityRoutes');
+const reservationUtils = require('./utils/reservationUtils');
 app.use('/availability', requireAuth, availabilityRoutes)
 
 app.post("/availability-slots", requireAdmin, async (req, res) => {
@@ -234,10 +237,13 @@ app.post("/availability-slots", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "End time must be after start time" });
     }
 
+    const startIso = reservationUtils.toMySQLDatetime(start_time);
+    const endIso = reservationUtils.toMySQLDatetime(end_time);
+
     await db.query(
       `INSERT INTO availability_slots (item_id, start_time, end_time)
        VALUES (?, ?, ?)`,
-      [item_id, start_time, end_time]
+      [item_id, startIso, endIso]
     );
 
     res.status(201).json({ message: "Availability slot created" });
@@ -541,6 +547,7 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
 });
 
 //ADMIN VIEW ALL USERS
+// Can add active reservations to the query if needed
 app.get("/admin/users", requireAdmin, async (req, res) => {
   try {
 
@@ -552,9 +559,9 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
 
         COUNT(r.id) AS total_reservations,
 
-        SUM(CASE WHEN r.end_date < NOW() THEN 1 ELSE 0 END) AS past_reservations,
+        SUM(CASE WHEN r.end_date < UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS past_reservations,
 
-        SUM(CASE WHEN r.start_date > NOW() THEN 1 ELSE 0 END) AS upcoming_reservations
+        SUM(CASE WHEN r.start_date > UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS upcoming_reservations
 
       FROM users u
       LEFT JOIN reservations r ON u.id = r.user_id
@@ -570,6 +577,7 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
   }
 });
 
+// Make Reservation Route
 app.post("/reservations", requireAuth, async (req, res) => {
   try {
 
@@ -656,11 +664,14 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
     // reuse validation pipeline
     await reservation.validateReservation();
 
+    const startIso = reservationUtils.toMySQLDatetime(reservation.start_date);
+    const endIso = reservationUtils.toMySQLDatetime(reservation.end_date);
+
     await db.query(
       `UPDATE reservations
        SET item_id = ?, start_date = ?, end_date = ?
        WHERE id = ?`,
-      [reservation.item_id, reservation.start_date, reservation.end_date, reservationId]
+      [reservation.item_id, startIso, endIso, reservationId]
     );
 
     res.json({ message: "Reservation updated successfully" });
