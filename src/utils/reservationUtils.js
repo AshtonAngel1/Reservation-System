@@ -65,19 +65,66 @@ class reservationUtils {
         return reservations;
     }
 
-
+    // Modified for New Availability tables
     static async checkAvailabilityWindow(reservation) {
-        let query = "SELECT * FROM availability_slots WHERE item_id = ? AND start_time <= ? AND end_time >= ?";
-        let params = [
-            reservation.item_id,
-            reservation.start_date,
-            reservation.end_date
-        ];
+        const itemId = reservation.item_id;
+        
+        const start = new Date(reservation.start_date);
+        const end = new Date(reservation.end_date);
+        
+        // MySQL DAYOFWEEK: Sunday = 1, JS getDay(): Sunday = 0
+        const dayOfWeek = start.getUTCDay(); // 0–6
 
-        const [rows] = await db.query(query, params);
+        const startTime = start.toISOString().slice(11, 19); // HH:MM:SS
+        const endTime = end.toISOString().slice(11, 19);
 
-        if (rows.length === 0) {
-            throw new Error("Reservation outside availability window.");
+        if (start.toDateString() != end.toDateString()) {
+            throw new Error("Reservations must be within a single day.");
+        }
+
+        // Check matching availability rule (when the item is available)
+        const [rules] = await db.query(`
+            SELECT * FROM availability_rules
+            WHERE item.id = ?
+            AND day_of_week = ?
+            AND start_time = <= ?
+            AND end_time >= ?
+            AND (valid_from IS NULL OR vaild_from <= DATE(?))
+            AND (valid_until IS NULL OR valid_until >= DATE(?))
+        `, [itemId, dayOfWeek, startTime, endTime, start, end]);
+
+        // if (rules.length === 0) {
+        //     throw new Error("Reseration outside availability window.")
+        // }
+
+        // Check  blocking exceptions
+        const [blocked] = await db.query(`
+            SELECT 1
+            FROM availability_exceptions
+            WHERE item_id = ?
+            AND is_available = FALSE
+            AND start_datetime < ?
+            AND end_datetime > ?
+            LIMIT 1
+        `, [itemId, end, start]);
+
+        if (blocked.length > 0) {
+            throw new Error("Reservation falls within an unavailable time window.");
+        }
+
+        // Override if wanted an extra day available (extended hours)
+        const [overrides] = await db.query(`
+            SELECT 1
+            FROM availability_exceptions
+            WHERE item_id = ?
+            AND is_available = TRUE
+            AND start_datetime < ?
+            AND end_datetime > ?
+            LIMIT 1
+        `, [itemId, end, start]);
+
+        if (rules.length === 0 && overrides.length === 0) {
+            throw new Error("Reseration outside availability window.")
         }
     }
 

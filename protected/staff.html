@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Staff View</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page">
+    <h1>Staff View</h1>
+
+    <div class="card">
+      <h2>Upcoming Reservations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Item</th>
+            <th>Reserved By</th>
+            <th>Start</th>
+            <th>End</th>
+          </tr>
+        </thead>
+        <tbody id="staffReservationTable"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Manage Availability</h2>
+      <form id="availabilityForm">
+        <div class="form-row">
+          <label for="itemSelect">Item</label>
+          <select id="itemSelect" required></select>
+        </div>
+
+        <div class="form-row">
+          <label for="start_time">Start Time</label>
+          <input id="start_time" type="datetime-local" required>
+        </div>
+
+        <div class="form-row">
+          <label for="end_time">End Time</label>
+          <input id="end_time" type="datetime-local" required>
+        </div>
+
+        <button type="submit">Create Availability Slot</button>
+      </form>
+      <p id="availabilityMsg"></p>
+    </div>
+
+    <div class="card">
+      <h2>Current Availability Slots</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Slot ID</th>
+            <th>Item</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody id="slotTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let staffItems = [];
+
+    async function fetchSession() {
+      const sessionRes = await fetch('/session');
+      const session = await sessionRes.json();
+
+      if (!session.loggedIn) {
+        window.location.href = '/login.html';
+        return null;
+      }
+
+      if (!session.is_staff) {
+        alert('Staff access required');
+        window.location.href = '/dashboard';
+        return null;
+      }
+
+      return session;
+    }
+
+    async function loadStaffItems() {
+      const res = await fetch('/staff/items');
+      if (!res.ok) return;
+
+      staffItems = await res.json();
+      const select = document.getElementById('itemSelect');
+      select.innerHTML = '';
+
+      staffItems.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = `${item.name} (${item.type})`;
+        select.appendChild(option);
+      });
+    }
+
+    async function loadUpcomingReservations() {
+      const res = await fetch('/staff/upcoming-reservations');
+      if (!res.ok) return;
+
+      const rows = await res.json();
+      const table = document.getElementById('staffReservationTable');
+      table.innerHTML = '';
+
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.id}</td>
+          <td>${r.item_name}</td>
+          <td>${r.reserved_by}</td>
+          <td>${new Date(r.start_date).toLocaleString()}</td>
+          <td>${new Date(r.end_date).toLocaleString()}</td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+
+    async function loadAvailabilitySlots() {
+      const res = await fetch('/staff/availability-slots');
+      if (!res.ok) return;
+
+      const slots = await res.json();
+      const table = document.getElementById('slotTable');
+      table.innerHTML = '';
+
+      slots.forEach(slot => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${slot.id}</td>
+          <td>${slot.item_name}</td>
+          <td>${new Date(slot.start_time).toLocaleString()}</td>
+          <td>${new Date(slot.end_time).toLocaleString()}</td>
+          <td><button onclick="deleteSlot(${slot.id})">Delete</button></td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+
+    async function deleteSlot(slotId) {
+      const res = await fetch(`/staff/availability-slots/${slotId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+      const msg = document.getElementById('availabilityMsg');
+
+      if (!res.ok) {
+        msg.textContent = data.error || 'Failed to delete slot';
+        return;
+      }
+
+      msg.textContent = 'Availability slot deleted';
+      loadAvailabilitySlots();
+    }
+
+    async function createSlot(e) {
+      e.preventDefault();
+
+      const msg = document.getElementById('availabilityMsg');
+      msg.textContent = '';
+
+      const payload = {
+        item_id: Number(document.getElementById('itemSelect').value),
+        start_time: document.getElementById('start_time').value,
+        end_time: document.getElementById('end_time').value
+      };
+
+      const res = await fetch('/staff/availability-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        msg.textContent = data.error || 'Failed to create slot';
+        return;
+      }
+
+      msg.textContent = 'Availability slot created';
+      document.getElementById('availabilityForm').reset();
+      loadAvailabilitySlots();
+      loadUpcomingReservations();
+    }
+
+    async function init() {
+      const session = await fetchSession();
+      if (!session) return;
+
+      await loadStaffItems();
+      await loadUpcomingReservations();
+      await loadAvailabilitySlots();
+
+      document.getElementById('availabilityForm').addEventListener('submit', createSlot);
+    }
+
+    init();
+  </script>
+  <script src="/components/navbar.js"></script>
+</body>
+</html>

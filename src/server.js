@@ -225,6 +225,7 @@ const availabilityRoutes = require('./reservation/availabilityRoutes');
 const reservationUtils = require('./utils/reservationUtils');
 app.use('/availability', requireAuth, availabilityRoutes)
 
+// Deprecated
 app.post("/availability-slots", requireAdmin, async (req, res) => {
   try {
     const { item_id, start_time, end_time } = req.body;

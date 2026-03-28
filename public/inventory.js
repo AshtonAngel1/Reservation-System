@@ -21,6 +21,30 @@ function createDeleteButton(type, id) {
   return btn;
 }
 
+function createRuleRow() {
+  const div = document.createElement("div");
+
+  div.innerHTML = `
+    <select class="day">
+      <option value="0">Sunday</option>
+      <option value="1">Monday</option>
+      <option value="2">Tuesday</option>
+      <option value="3">Wednesday</option>
+      <option value="4">Thursday</option>
+      <option value="5">Friday</option>
+      <option value="6">Saturday</option>
+    </select>
+
+    <input type="time" class="start">
+    <input type="time" class="end">
+
+    <button class="removeRuleBtn">X</button>
+  `;
+
+  div.querySelector(".removeRuleBtn").onclick = () => div.remove();
+
+  return div;
+}
 
 // --- LOAD TABLES ---
 async function loadTables() {
@@ -142,27 +166,97 @@ document.getElementById("addPersonBtn").addEventListener("click", async () => {
   loadTables();
 });
 
-document.getElementById("addAvailabilityBtn").addEventListener("click", async () => {
-
+document.getElementById("addExceptionBtn").addEventListener("click", async () => {
   const item_id = document.getElementById("availabilityItem").value;
-  const start_time = document.getElementById("availabilityStart").value;
-  const end_time = document.getElementById("availabilityEnd").value;
+  const start = document.getElementById("exceptionStart").value;
+  const end = document.getElementById("exceptionEnd").value;
+  const is_available = document.getElementById("exceptionType").value === "true";
 
-  if (!item_id || !start_time || !end_time) {
-    return alert("All availability fields are required!");
+  if (!item_id || !start || !end) {
+    return alert("All fields required");
   }
 
-  if (new Date(start_time) >= new Date(end_time)) {
-    return alert("End time must be after start time!");
+  if (new Date(start) >= new Date(end)) {
+    return alert("Invalid time range");
   }
 
-  await fetch("/availability-slots", {
+  await fetch("/availability/exceptions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ item_id, start_time, end_time })
+    body: JSON.stringify({
+      item_id,
+      start_datetime: start,
+      end_datetime: end,
+      is_available
+    })
   });
 
-  alert("Availability slot added!");
+  alert("Exception added!");
+});
+
+document.getElementById("addRuleRowBtn").addEventListener("click", () => {
+  const container = document.getElementById("weeklyRulesContainer");
+  container.appendChild(createRuleRow());
+});
+
+document.getElementById("saveRulesBtn").addEventListener("click", async () => {
+  const item_id = document.getElementById("availabilityItem").value;
+  const rows = document.querySelectorAll("#weeklyRulesContainer > div");
+  
+
+  if (!item_id || rows.length === 0) {
+    return alert("Select an item and add at least one time block");
+  }
+
+  const rules = [];
+
+  for (const row of rows) {
+    const day = parseInt(row.querySelector(".day").value);
+    const start = row.querySelector(".start").value;
+    const end = row.querySelector(".end").value;
+
+    if (!start || !end || start >= end) {
+      return alert("Invalid time range in one of the blocks");
+    }
+
+    rules.push({
+      day_of_week: day,
+      start_time: start + ":00",
+      end_time: end + ":00"
+    });
+  }
+
+  await fetch("/availability/rules/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      item_id,
+      rules
+    })
+  });
+
+  alert("Weekly schedule saved!");
+});
+
+// Load existing time blocks when item changes
+document.getElementById("availabilityItem").addEventListener("change", async () => {
+  const item_id = document.getElementById("availabilityItem").value;
+
+  const res = await fetch(`/availability/rules/${item_id}`);
+  const rules = await res.json();
+
+  const container = document.getElementById("weeklyRulesContainer");
+  container.innerHTML = "";
+
+  rules.forEach(rule => {
+    const row = createRuleRow();
+
+    row.querySelector(".day").value = rule.day_of_week;
+    row.querySelector(".start").value = rule.start_time;
+    row.querySelector(".end").value = rule.end_time;
+
+    container.appendChild(row);
+  });
 });
 
 // --- INITIAL LOAD ---
