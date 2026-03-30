@@ -5,6 +5,14 @@ async function fetchInventory() {
   return data;
 }
 
+function normalizeTime(t) {
+  // If already HH:MM:SS → return as is
+  if (t.split(":").length === 3) return t;
+
+  // If HH:MM -> append seconds
+  return t + ":00";
+}
+
 function createDeleteButton(type, id) {
   const btn = document.createElement("button");
   btn.textContent = "Delete";
@@ -118,6 +126,13 @@ async function loadTables() {
     option.textContent = `${item.name} (${item.type})`;
     availabilitySelect.appendChild(option);
   });
+
+  if (items.length > 0) {
+  availabilitySelect.value = items[0].id;
+
+  // manually trigger load
+  availabilitySelect.dispatchEvent(new Event("change"));
+}
 }
 
 // --- ADD NEW ITEMS ---
@@ -221,8 +236,8 @@ document.getElementById("saveRulesBtn").addEventListener("click", async () => {
 
     rules.push({
       day_of_week: day,
-      start_time: start + ":00",
-      end_time: end + ":00"
+      start_time: normalizeTime(start),
+      end_time: normalizeTime(end)
     });
   }
 

@@ -71,31 +71,33 @@ class reservationUtils {
         
         const start = new Date(reservation.start_date);
         const end = new Date(reservation.end_date);
-        
-        // MySQL DAYOFWEEK: Sunday = 1, JS getDay(): Sunday = 0
-        const dayOfWeek = start.getUTCDay(); // 0–6
-
-        const startTime = start.toISOString().slice(11, 19); // HH:MM:SS
-        const endTime = end.toISOString().slice(11, 19);
 
         if (start.toDateString() != end.toDateString()) {
             throw new Error("Reservations must be within a single day.");
         }
+        
+        // MySQL DAYOFWEEK: Sunday = 1, JS getDay(): Sunday = 0
+        const dayOfWeek = start.getDay(); // 0–6
+
+        function toTimeString(date) {
+            return date.toTimeString().slice(0, 8);
+        }
+
+        const startTime = toTimeString(start);
+        const endTime = toTimeString(end);
+
 
         // Check matching availability rule (when the item is available)
         const [rules] = await db.query(`
             SELECT * FROM availability_rules
-            WHERE item.id = ?
+            WHERE item_id = ?
             AND day_of_week = ?
-            AND start_time = <= ?
+            AND start_time <= ?
             AND end_time >= ?
-            AND (valid_from IS NULL OR vaild_from <= DATE(?))
+            AND (valid_from IS NULL OR valid_from <= DATE(?))
             AND (valid_until IS NULL OR valid_until >= DATE(?))
         `, [itemId, dayOfWeek, startTime, endTime, start, end]);
 
-        // if (rules.length === 0) {
-        //     throw new Error("Reseration outside availability window.")
-        // }
 
         // Check  blocking exceptions
         const [blocked] = await db.query(`

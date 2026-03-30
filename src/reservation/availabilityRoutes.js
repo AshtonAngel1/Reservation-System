@@ -178,7 +178,6 @@ router.delete("/exceptions/:id", requireAdmin, async (req, res) => {
 
 // Prevent calling /rules multiple times
 router.post("/rules/bulk", requireAdmin, async (req, res) => {
-  const connection = await db.getConnection();
   
   try {
     const { item_id, rules } = req.body;
@@ -188,9 +187,8 @@ router.post("/rules/bulk", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "Invalid payload" });
     }
 
-    await connection.beginTransaction();
 
-    await connection.query(
+    await db.query(
       "DELETE FROM availability_rules WHERE item_id = ?",
       [item_id]
     )
@@ -213,17 +211,13 @@ router.post("/rules/bulk", requireAdmin, async (req, res) => {
       `, [values]);
     }
 
-    await connection.commit();
 
     res.json({ message: "Weekly schedule replaced succesfully" });
 
   } catch (err) {
-    await connection.rollback();
     console.error(err);
     res.status(500).json({ error: err.message });
-  } finally {
-    connection.release();
-  }
+  } 
 });
 
 module.exports = router;
