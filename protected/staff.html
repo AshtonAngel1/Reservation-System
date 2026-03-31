@@ -6,7 +6,7 @@
 </head>
 <body>
   <div class="page">
-    <h1>Staff View</h1>
+    <h1>Staff Dashboard</h1>
 
     <div class="card">
       <h2>Upcoming Reservations</h2>
@@ -25,65 +25,64 @@
     </div>
 
     <div class="card">
-      <h2>Manage Availability</h2>
-      <form id="availabilityForm">
-        <div class="form-row">
-          <label for="itemSelect">Item</label>
-          <select id="itemSelect" required></select>
-        </div>
+    <h2>Manage Weekly Availability</h2>
 
-        <div class="form-row">
-          <label for="start_time">Start Time</label>
-          <input id="start_time" type="datetime-local" required>
-        </div>
+    <form id="availabilityForm">
 
-        <div class="form-row">
-          <label for="end_time">End Time</label>
-          <input id="end_time" type="datetime-local" required>
-        </div>
+      <div class="form-row">
+        <label>Item</label>
+        <select id="itemSelect"></select>
+      </div>
 
-        <button type="submit">Create Availability Slot</button>
-      </form>
-      <p id="availabilityMsg"></p>
-    </div>
+      <div class="form-row">
+        <label>Day of Week</label>
+        <select id="day_of_week">
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
+      </div>
 
-    <div class="card">
-      <h2>Current Availability Slots</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Slot ID</th>
-            <th>Item</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Delete</th>
-          </tr>
-        </thead>
-        <tbody id="slotTable"></tbody>
-      </table>
-    </div>
+      <div class="form-row">
+        <label>Start Time</label>
+        <input type="time" id="start_time" required>
+      </div>
+
+      <div class="form-row">
+        <label>End Time</label>
+        <input type="time" id="end_time" required>
+      </div>
+
+      <button type="submit">Update Availability</button>
+    </form>
+
+    <p id="availabilityMsg"></p>
+  </div>
+
+  <div class="card">
+    <h2>Current Availability</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Item</th>
+          <th>Day</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Cancel</th>
+        </tr>
+      </thead>
+      <tbody id="rulesTable"></tbody>
+    </table>
   </div>
 
   <script>
     let staffItems = [];
-
-    async function fetchSession() {
-      const sessionRes = await fetch('/session');
-      const session = await sessionRes.json();
-
-      if (!session.loggedIn) {
-        window.location.href = '/login.html';
-        return null;
-      }
-
-      if (!session.is_staff) {
-        alert('Staff access required');
-        window.location.href = '/dashboard';
-        return null;
-      }
-
-      return session;
-    }
 
     async function loadStaffItems() {
       const res = await fetch('/staff/items');
@@ -114,7 +113,7 @@
         tr.innerHTML = `
           <td>${r.id}</td>
           <td>${r.item_name}</td>
-          <td>${r.reserved_by}</td>
+          <td>${r.user_email}</td>
           <td>${new Date(r.start_date).toLocaleString()}</td>
           <td>${new Date(r.end_date).toLocaleString()}</td>
         `;
@@ -123,11 +122,11 @@
     }
 
     async function loadAvailabilitySlots() {
-      const res = await fetch('/staff/availability-slots');
+      const res = await fetch('/staff/availability-rules');
       if (!res.ok) return;
 
       const slots = await res.json();
-      const table = document.getElementById('slotTable');
+      const table = document.getElementById('rulesTable');
       table.innerHTML = '';
 
       slots.forEach(slot => {
@@ -135,8 +134,9 @@
         tr.innerHTML = `
           <td>${slot.id}</td>
           <td>${slot.item_name}</td>
-          <td>${new Date(slot.start_time).toLocaleString()}</td>
-          <td>${new Date(slot.end_time).toLocaleString()}</td>
+          <td>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][slot.day_of_week]}</td>
+          <td>${slot.start_time}</td>
+          <td>${slot.end_time}</td>
           <td><button onclick="deleteSlot(${slot.id})">Delete</button></td>
         `;
         table.appendChild(tr);
@@ -144,7 +144,7 @@
     }
 
     async function deleteSlot(slotId) {
-      const res = await fetch(`/staff/availability-slots/${slotId}`, {
+      const res = await fetch(`/staff/availability-rules/${slotId}`, {
         method: 'DELETE'
       });
 
@@ -168,11 +168,12 @@
 
       const payload = {
         item_id: Number(document.getElementById('itemSelect').value),
-        start_time: document.getElementById('start_time').value,
-        end_time: document.getElementById('end_time').value
+        day_of_week: Number(document.getElementById('day_of_week').value),
+        start_time: document.getElementById('start_time').value + ":00",
+        end_time: document.getElementById('end_time').value + ":00"
       };
 
-      const res = await fetch('/staff/availability-slots', {
+      const res = await fetch('/staff/availability-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -192,8 +193,6 @@
     }
 
     async function init() {
-      const session = await fetchSession();
-      if (!session) return;
 
       await loadStaffItems();
       await loadUpcomingReservations();

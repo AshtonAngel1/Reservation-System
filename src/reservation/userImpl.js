@@ -37,7 +37,7 @@ class userImpl {
     async validateUserLogIn() {
         userUtils.noFieldIsEmpty(this.#email, this.#password);
         const [userResults] = await db.query(
-            "SELECT id, email, passwordHash, is_admin FROM users WHERE email = ?",
+            "SELECT id, email, passwordHash, is_admin, is_staff FROM users WHERE email = ?",
             [this.#email]
         );
 
@@ -56,7 +56,8 @@ class userImpl {
         return {
             id: user.id,
             email: user.email,
-            is_admin: user.is_admin === 1
+            is_admin: user.is_admin === 1,
+            is_staff: user.is_staff === 1
         };
     }
 

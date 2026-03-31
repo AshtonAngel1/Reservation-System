@@ -13,6 +13,21 @@ function normalizeTime(t) {
   return t + ":00";
 }
 
+async function loadStaffUsers() {
+  const res = await fetch('/admin/staff-users');
+  const users = await res.json();
+
+  const select = document.getElementById('personUser');
+  select.innerHTML = '<option value="">None</option>';
+
+  for (const u of users) {
+    const option = document.createElement('option');
+    option.value = u.id;
+    option.textContent = u.email;
+    select.appendChild(option);
+  }
+}
+
 function createDeleteButton(type, id) {
   const btn = document.createElement("button");
   btn.textContent = "Delete";
@@ -102,6 +117,8 @@ async function loadTables() {
   const peopleTbody = document.querySelector("#peopleTable tbody");
   peopleTbody.innerHTML = "";
 
+  await loadStaffUsers();
+
   people.forEach(p => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -170,12 +187,13 @@ document.getElementById("addPersonBtn").addEventListener("click", async () => {
   const first_name = document.getElementById("personName").value.trim();
   const last_name = document.getElementById("personLastName").value.trim();
   const role = document.getElementById("personRole").value.trim();
+  const user_id = document.getElementById("personUser").value;
 
-  if (!first_name || !last_name || !role) return alert("All person fields are required!");
+  if (!first_name || !last_name || !role || !user_id) return alert("All person fields are required!");
 
   await fetch("/people", { 
     method: "POST", headers: { "Content-Type": "application/json" }, 
-    body: JSON.stringify({ first_name, last_name, role }) 
+    body: JSON.stringify({ first_name, last_name, role, user_id }) 
   });
 
   loadTables();

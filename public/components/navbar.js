@@ -22,6 +22,10 @@ async function loadNavbar() {
           adminLink.style.display = "inline-block";
         }
 
+        if (sessionData.is_staff) {
+          document.getElementById("staffLink").style.display = "inline-block";
+        }
+
       } else {
         authSection.innerHTML = `
           <a href="/login.html" style="color:white;">Login</a>

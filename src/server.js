@@ -46,6 +46,13 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireStaff(req, res, next) {
+  if (!req.session.user || !req.session.user.is_staff) {
+    return res.status(403).json({ error: "Staff access required" });
+  }
+  next();
+}
+
 function preventLoggedInAccess(req, res, next) {
   if (req.session.user) {
     return res.redirect("/");
@@ -63,6 +70,7 @@ app.get("/session", (req, res) => {
   res.json({
     loggedIn: true,
     is_admin: req.session.user.is_admin,
+    is_staff: req.session.user.is_staff,
     email: req.session.user.email
   });
 });
@@ -105,7 +113,8 @@ app.post("/login", async (req, res) => {
 
     return res.json({
       message: "Login successful",
-      is_admin: loggedInUser.is_admin
+      is_admin: loggedInUser.is_admin,
+      is_staff: loggedInUser.is_staff
     });
 
   } catch(err) {
@@ -176,39 +185,89 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
       return res.status(400).json({ error: "Missing item type" });
     }
 
-    let sql;
-    let params;
-    
-    if (start && end) {
-    
-      sql = `
-        SELECT i.id, i.name, i.type
-        FROM items i
-        LEFT JOIN reservations r
-          ON i.id = r.item_id
-          AND r.start_date < ?
-          AND r.end_date > ?
-          AND (? IS NULL OR r.id != ?)
-        WHERE i.type = ?
-        AND i.active = TRUE
-        AND r.id IS NULL
-      `;
+    if (!start || !end) {
 
-      params = [end, start, excludeReservationId || null, excludeReservationId || null, type];
-
-    } else {
-
-      sql = `
+      const [rows] = await db.query(`
         SELECT id, name, type
         FROM items
         WHERE type = ?
         AND active = TRUE
-      `;
-      
-      params = [type];
+      `, [type]);
+
+      return res.json(rows);
     }
 
-    const [rows] = await db.execute(sql, params);
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    // enforce single-day (same as validation)
+    if (startDate.toDateString() !== endDate.toDateString()) {
+      return res.status(400).json({ error: "Must be same-day reservation" });
+    }
+
+    // Local Time
+    const dayOfWeek = startDate.getDay();
+    const startTime = startDate.toTimeString().slice(0, 8);
+    const endTime = endDate.toTimeString().slice(0, 8);
+    const startDateOnly = startDate.toISOString().slice(0, 10);
+
+    const [rows] = await db.query(`
+      SELECT i.id, i.name, i.type
+      FROM items i
+
+      JOIN availability_rules ar
+        ON ar.item_id = i.id
+        AND ar.day_of_week = ?
+        AND ar.start_time <= ?
+        AND ar.end_time >= ?
+        AND COALESCE(ar.valid_from, '1000-01-01') <= ?
+        AND COALESCE(ar.valid_until, '9999-12-31') >= ?
+
+      LEFT JOIN availability_exceptions override
+        ON override.item_id = i.id
+        AND override.is_available = TRUE
+        AND override.start_datetime <= ?
+        AND override.end_datetime >= ?
+
+      LEFT JOIN availability_exceptions block
+        ON block.item_id = i.id
+        AND block.is_available = FALSE
+        AND block.start_datetime < ?
+        AND block.end_datetime > ?
+
+      LEFT JOIN reservations r
+        ON r.item_id = i.id
+        AND r.start_date < ?
+        AND r.end_date > ?
+        AND (? IS NULL OR r.id != ?)
+
+      WHERE i.type = ?
+      AND i.active = TRUE
+      AND (ar.id IS NOT NULL OR override.id IS NOT NULL)
+      AND block.id IS NULL
+      AND r.id IS NULL
+
+      GROUP BY i.id
+    `, [
+      dayOfWeek,
+      startTime,
+      endTime,
+      startDateOnly,
+      startDateOnly,
+
+      endDate,
+      startDate,
+
+      endDate,
+      startDate,
+
+      endDate,
+      startDate,
+      excludeReservationId || null,
+      excludeReservationId || null,
+
+      type
+    ]);
 
     res.json(rows);
 
@@ -352,13 +411,13 @@ app.delete("/resources/:id", requireAdmin, async (req,res)=>{
 // People
 app.post("/people", requireAdmin, async (req, res) => {
   try {
-    let { first_name, last_name, role } = req.body;
+    let { first_name, last_name, role, user_id } = req.body;
 
     first_name = first_name?.trim();
     last_name = last_name?.trim();
     role = role?.trim();
 
-    if (!first_name || !last_name || !role) {
+    if (!first_name || !last_name || !role || !user_id) {
       return res.status(400).json({ error: "All people fields are required" });
     }
 
@@ -372,11 +431,11 @@ app.post("/people", requireAdmin, async (req, res) => {
     const itemId = result.insertId;
 
     await db.query(
-      "INSERT INTO people (item_id, first_name, last_name, role) VALUES (?, ?, ?, ?)",
-      [itemId, first_name, last_name, role]
+      "INSERT INTO people (item_id, first_name, last_name, role, user_id) VALUES (?, ?, ?, ?, ?)",
+      [itemId, first_name, last_name, role, user_id || null]
     )
 
-    res.status(201).json({ id: itemId });
+    res.json({ message: "Person added" });
 
   } catch (err) {
     console.error(err);
@@ -696,6 +755,103 @@ app.delete("/reservations/:id", requireAuth, async (req, res) => {
 });
 
 
+// Staff Routes
+app.get("/staff/items", requireStaff, async (req, res) => {
+  const [rows] = await db.query(`
+    SELECT i.id, i.name, i.type
+    FROM items i
+    JOIN people p ON p.item_id = i.id
+    WHERE p.user_id = ?
+      AND i.active = TRUE
+  `, [req.session.user.id]);
+  res.json(rows);
+});
+
+// Get all availability (for staff dashboard)
+app.get("/staff/availability-rules", requireStaff, async (req, res) => {
+  const [rows] = await db.query(`
+    SELECT 
+      ar.*,
+      i.name AS item_name
+    FROM availability_rules ar
+    JOIN items i ON ar.item_id = i.id
+    JOIN people p ON p.item_id = i.id
+    WHERE p.user_id = ?
+  `, [req.session.user.id]);
+  res.json(rows);
+});
+
+
+// Create availability
+app.post("/staff/availability-rules", requireStaff, async (req, res) => {
+  const { item_id, day_of_week, start_time, end_time } = req.body;
+
+  const [rows] = await db.query(`
+    SELECT 1 FROM people
+    WHERE item_id = ? AND user_id = ?
+  `, [item_id, req.session.user.id]);
+
+
+  if (rows.length === 0) {
+    return res.status(403).json({ error: "Unauthorized item" });
+  }
+
+  await db.query(`
+    INSERT INTO availability_rules
+    (item_id, day_of_week, start_time, end_time)
+    VALUES (?, ?, ?, ?)
+  `, [item_id, day_of_week, start_time, end_time]);
+
+  res.json({ message: "Availability slot created" });
+});
+
+// Delete availability
+app.delete("/staff/availability-rules/:id", requireStaff, async (req, res) => {
+  await db.query(`
+    DELETE ar FROM availability_rules ar
+    JOIN people p ON ar.item_id = p.item_id
+    WHERE ar.id = ? AND p.user_id = ?
+  `, [req.params.id, req.session.user.id]);
+
+  res.json({ message: "Deleted" });
+});
+
+
+app.get("/staff/upcoming-reservations", requireStaff, async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT 
+        r.id,
+        i.name AS item_name,
+        u.email AS user_email,
+        r.start_date,
+        r.end_date
+      FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      JOIN users u ON r.user_id = u.id
+      JOIN people p ON p.item_id = i.id
+      WHERE p.user_id = ?
+        AND r.start_date >= UTC_TIMESTAMP()
+      ORDER BY r.start_date ASC
+    `, [req.session.user.id]);
+
+    res.json(rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+app.get('/admin/staff-users', requireAdmin, async (req, res) => {
+  const [rows] = await db.query(`
+    SELECT id, email FROM users WHERE is_staff = 1
+  `);
+  res.json(rows);
+});
+
+
 app.delete("/admin/reservations/:id", requireAdmin, async (req, res) => {
   try {
     
@@ -755,6 +911,10 @@ app.get("/dashboard", requireAuth, (req, res) => {
 
 app.get("/edit-reservation", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "../protected/edit-reservation.html"));
+});
+
+app.get("/staff", requireStaff, (req, res) => {
+  res.sendFile(path.join(__dirname, "../protected/staff.html"));
 });
 
 // --------- Serve frontend AFTER API ROUTES ---------
