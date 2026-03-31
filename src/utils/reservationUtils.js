@@ -31,14 +31,17 @@ class reservationUtils {
         }
     }
 
+    
     static startDateNotInPast(reservation) {
         const now = new Date();
+        now.setSeconds(0, 0); // minute precision to avoid same-minute false negatives
         const startDate = new Date(reservation.start_date);
 
         if (startDate < now) {
             throw new Error("Start date cannot be in the past");
         }
     }
+
 
     static reservationCannotExceedOneWeek(reservation) {
         const startDate = new Date(reservation.start_date);
@@ -52,6 +55,7 @@ class reservationUtils {
         }
     }
 
+
     static async getAllUserReservations(user_id) {
         const [reservations] = await db.query(
             "SELECT * FROM reservations WHERE user_id = ?",
@@ -61,31 +65,101 @@ class reservationUtils {
         return reservations;
     }
 
+    // Modified for New Availability tables
     static async checkAvailabilityWindow(reservation) {
-        let query = "SELECT * FROM availability_slots WHERE item_id = ? AND start_time <= ? AND end_time >= ?";
-        let params = [
-            reservation.item_id, 
-            reservation.start_date, 
-            reservation.end_date
-        ];
+        const itemId = reservation.item_id;
+        
+        const start = new Date(reservation.start_date);
+        const end = new Date(reservation.end_date);
 
-        if (reservation.id) {
-            query += " AND id != ?";
-            params.push(reservation.id);
+        if (start.toDateString() != end.toDateString()) {
+            throw new Error("Reservations must be within a single day.");
+        }
+        
+        // MySQL DAYOFWEEK: Sunday = 1, JS getDay(): Sunday = 0
+        const dayOfWeek = start.getDay(); // 0–6
+
+        function toTimeString(date) {
+            return date.toTimeString().slice(0, 8);
         }
 
-        const [rows] = await db.query(query, params);
+        const startTime = toTimeString(start);
+        const endTime = toTimeString(end);
 
-        if (rows.length === 0) {
-            throw new Error("Reservation outside availability window.");
+
+        // Check matching availability rule (when the item is available)
+        const [rules] = await db.query(`
+            SELECT * FROM availability_rules
+            WHERE item_id = ?
+            AND day_of_week = ?
+            AND start_time <= ?
+            AND end_time >= ?
+            AND (valid_from IS NULL OR valid_from <= DATE(?))
+            AND (valid_until IS NULL OR valid_until >= DATE(?))
+        `, [itemId, dayOfWeek, startTime, endTime, start, end]);
+
+
+        // Check  blocking exceptions
+        const [blocked] = await db.query(`
+            SELECT 1
+            FROM availability_exceptions
+            WHERE item_id = ?
+            AND is_available = FALSE
+            AND start_datetime < ?
+            AND end_datetime > ?
+            LIMIT 1
+        `, [itemId, end, start]);
+
+        if (blocked.length > 0) {
+            throw new Error("Reservation falls within an unavailable time window.");
         }
+
+        // Override if wanted an extra day available (extended hours)
+        const [overrides] = await db.query(`
+            SELECT 1
+            FROM availability_exceptions
+            WHERE item_id = ?
+            AND is_available = TRUE
+            AND start_datetime < ?
+            AND end_datetime > ?
+            LIMIT 1
+        `, [itemId, end, start]);
+
+        if (rules.length === 0 && overrides.length === 0) {
+            throw new Error("Reseration outside availability window.")
+        }
+    }
+
+
+    static toMySQLDatetime(isoString) {
+        const date = new Date(isoString);
+        
+        return date.getUTCFullYear() + '-' +
+            String(date.getUTCMonth() + 1).padStart(2, '0') + '-' +
+            String(date.getUTCDate()).padStart(2, '0') + ' ' +
+            String(date.getUTCHours()).padStart(2, '0') + ':' +
+            String(date.getUTCMinutes()).padStart(2, '0') + ':' +
+            String(date.getUTCSeconds()).padStart(2, '0');
+    }
+
+
+    static toLocalInputValue(utcString) {
+        const date = new Date(utcString);
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
     }
 
 
     // For view-reservation.html
     getReservations() {
         // Get all reservations from the database
-        
+
     }
 }
 

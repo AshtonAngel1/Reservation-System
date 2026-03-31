@@ -11,9 +11,9 @@
     <thead>
       <tr>
         <th>ID</th>
+        <th>Item Name</th>
         <th>Item Type</th>
-        <th>Item ID</th>
-        <th>Email</th>
+        <th>User Email</th>
         <th>Start</th>
         <th>End</th>
         <th>Delete</th>
@@ -25,7 +25,7 @@
   <script>
     async function loadReservations() {
       const response = await fetch("/admin/reservations");
-      
+
       if (response.status === 401) {
         alert("Please login first.");
         window.location.href = "/login.html";
@@ -42,28 +42,29 @@
         alert("Something went wrong.");
         return;
       }
-      
+
       const reservations = await response.json();
       const table = document.getElementById("reservationTable");
       table.innerHTML = "";
 
-      reservations.forEach(r => {
-        const row = document.createElement("tr");
+      const now = new Date();
 
+      // Show only upcoming/active reservations to match heading
+      const upcoming = reservations.filter(r => new Date(r.end_date) >= now);
+
+      upcoming.forEach(r => {
+        const row = document.createElement("tr");
         row.innerHTML = `
           <td>${r.id}</td>
+          <td>${r.item_name}</td>
           <td>${r.item_type}</td>
-          <td>${r.item_id}</td>
           <td>${r.user_email}</td>
-          <td>${r.start_date}</td>
-          <td>${r.end_date}</td>
+          <td>${new Date(r.start_date).toLocaleString()}</td>
+          <td>${new Date(r.end_date).toLocaleString()}</td>
           <td>
-            <button onclick="deleteReservation(${r.id})">
-              Delete
-            </button>
+            <button onclick="deleteReservation(${r.id})">Delete</button>
           </td>
         `;
-
         table.appendChild(row);
       });
     }

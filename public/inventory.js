@@ -5,6 +5,29 @@ async function fetchInventory() {
   return data;
 }
 
+function normalizeTime(t) {
+  // If already HH:MM:SS → return as is
+  if (t.split(":").length === 3) return t;
+
+  // If HH:MM -> append seconds
+  return t + ":00";
+}
+
+async function loadStaffUsers() {
+  const res = await fetch('/admin/staff-users');
+  const users = await res.json();
+
+  const select = document.getElementById('personUser');
+  select.innerHTML = '<option value="">None</option>';
+
+  for (const u of users) {
+    const option = document.createElement('option');
+    option.value = u.id;
+    option.textContent = u.email;
+    select.appendChild(option);
+  }
+}
+
 function createDeleteButton(type, id) {
   const btn = document.createElement("button");
   btn.textContent = "Delete";
@@ -21,6 +44,30 @@ function createDeleteButton(type, id) {
   return btn;
 }
 
+function createRuleRow() {
+  const div = document.createElement("div");
+
+  div.innerHTML = `
+    <select class="day">
+      <option value="0">Sunday</option>
+      <option value="1">Monday</option>
+      <option value="2">Tuesday</option>
+      <option value="3">Wednesday</option>
+      <option value="4">Thursday</option>
+      <option value="5">Friday</option>
+      <option value="6">Saturday</option>
+    </select>
+
+    <input type="time" class="start">
+    <input type="time" class="end">
+
+    <button class="removeRuleBtn">X</button>
+  `;
+
+  div.querySelector(".removeRuleBtn").onclick = () => div.remove();
+
+  return div;
+}
 
 // --- LOAD TABLES ---
 async function loadTables() {
@@ -70,6 +117,8 @@ async function loadTables() {
   const peopleTbody = document.querySelector("#peopleTable tbody");
   peopleTbody.innerHTML = "";
 
+  await loadStaffUsers();
+
   people.forEach(p => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -94,6 +143,13 @@ async function loadTables() {
     option.textContent = `${item.name} (${item.type})`;
     availabilitySelect.appendChild(option);
   });
+
+  if (items.length > 0) {
+  availabilitySelect.value = items[0].id;
+
+  // manually trigger load
+  availabilitySelect.dispatchEvent(new Event("change"));
+}
 }
 
 // --- ADD NEW ITEMS ---
@@ -131,38 +187,109 @@ document.getElementById("addPersonBtn").addEventListener("click", async () => {
   const first_name = document.getElementById("personName").value.trim();
   const last_name = document.getElementById("personLastName").value.trim();
   const role = document.getElementById("personRole").value.trim();
+  const user_id = document.getElementById("personUser").value;
 
-  if (!first_name || !last_name || !role) return alert("All person fields are required!");
+  if (!first_name || !last_name || !role || !user_id) return alert("All person fields are required!");
 
   await fetch("/people", { 
     method: "POST", headers: { "Content-Type": "application/json" }, 
-    body: JSON.stringify({ first_name, last_name, role }) 
+    body: JSON.stringify({ first_name, last_name, role, user_id }) 
   });
 
   loadTables();
 });
 
-document.getElementById("addAvailabilityBtn").addEventListener("click", async () => {
-
+document.getElementById("addExceptionBtn").addEventListener("click", async () => {
   const item_id = document.getElementById("availabilityItem").value;
-  const start_time = document.getElementById("availabilityStart").value;
-  const end_time = document.getElementById("availabilityEnd").value;
+  const start = document.getElementById("exceptionStart").value;
+  const end = document.getElementById("exceptionEnd").value;
+  const is_available = document.getElementById("exceptionType").value === "true";
 
-  if (!item_id || !start_time || !end_time) {
-    return alert("All availability fields are required!");
+  if (!item_id || !start || !end) {
+    return alert("All fields required");
   }
 
-  if (new Date(start_time) >= new Date(end_time)) {
-    return alert("End time must be after start time!");
+  if (new Date(start) >= new Date(end)) {
+    return alert("Invalid time range");
   }
 
-  await fetch("/availability-slots", {
+  await fetch("/availability/exceptions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ item_id, start_time, end_time })
+    body: JSON.stringify({
+      item_id,
+      start_datetime: start,
+      end_datetime: end,
+      is_available
+    })
   });
 
-  alert("Availability slot added!");
+  alert("Exception added!");
+});
+
+document.getElementById("addRuleRowBtn").addEventListener("click", () => {
+  const container = document.getElementById("weeklyRulesContainer");
+  container.appendChild(createRuleRow());
+});
+
+document.getElementById("saveRulesBtn").addEventListener("click", async () => {
+  const item_id = document.getElementById("availabilityItem").value;
+  const rows = document.querySelectorAll("#weeklyRulesContainer > div");
+  
+
+  if (!item_id || rows.length === 0) {
+    return alert("Select an item and add at least one time block");
+  }
+
+  const rules = [];
+
+  for (const row of rows) {
+    const day = parseInt(row.querySelector(".day").value);
+    const start = row.querySelector(".start").value;
+    const end = row.querySelector(".end").value;
+
+    if (!start || !end || start >= end) {
+      return alert("Invalid time range in one of the blocks");
+    }
+
+    rules.push({
+      day_of_week: day,
+      start_time: normalizeTime(start),
+      end_time: normalizeTime(end)
+    });
+  }
+
+  await fetch("/availability/rules/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      item_id,
+      rules
+    })
+  });
+
+  alert("Weekly schedule saved!");
+});
+
+// Load existing time blocks when item changes
+document.getElementById("availabilityItem").addEventListener("change", async () => {
+  const item_id = document.getElementById("availabilityItem").value;
+
+  const res = await fetch(`/availability/rules/${item_id}`);
+  const rules = await res.json();
+
+  const container = document.getElementById("weeklyRulesContainer");
+  container.innerHTML = "";
+
+  rules.forEach(rule => {
+    const row = createRuleRow();
+
+    row.querySelector(".day").value = rule.day_of_week;
+    row.querySelector(".start").value = rule.start_time;
+    row.querySelector(".end").value = rule.end_time;
+
+    container.appendChild(row);
+  });
 });
 
 // --- INITIAL LOAD ---

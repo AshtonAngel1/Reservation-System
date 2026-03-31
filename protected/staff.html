@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Staff View</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page">
+    <h1>Staff Dashboard</h1>
+
+    <div class="card">
+      <h2>Upcoming Reservations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Item</th>
+            <th>Reserved By</th>
+            <th>Start</th>
+            <th>End</th>
+          </tr>
+        </thead>
+        <tbody id="staffReservationTable"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+    <h2>Manage Weekly Availability</h2>
+
+    <form id="availabilityForm">
+
+      <div class="form-row">
+        <label>Item</label>
+        <select id="itemSelect"></select>
+      </div>
+
+      <div class="form-row">
+        <label>Day of Week</label>
+        <select id="day_of_week">
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>Start Time</label>
+        <input type="time" id="start_time" required>
+      </div>
+
+      <div class="form-row">
+        <label>End Time</label>
+        <input type="time" id="end_time" required>
+      </div>
+
+      <button type="submit">Update Availability</button>
+    </form>
+
+    <p id="availabilityMsg"></p>
+  </div>
+
+  <div class="card">
+    <h2>Current Availability</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Item</th>
+          <th>Day</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Cancel</th>
+        </tr>
+      </thead>
+      <tbody id="rulesTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let staffItems = [];
+
+    async function loadStaffItems() {
+      const res = await fetch('/staff/items');
+      if (!res.ok) return;
+
+      staffItems = await res.json();
+      const select = document.getElementById('itemSelect');
+      select.innerHTML = '';
+
+      staffItems.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = `${item.name} (${item.type})`;
+        select.appendChild(option);
+      });
+    }
+
+    async function loadUpcomingReservations() {
+      const res = await fetch('/staff/upcoming-reservations');
+      if (!res.ok) return;
+
+      const rows = await res.json();
+      const table = document.getElementById('staffReservationTable');
+      table.innerHTML = '';
+
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.id}</td>
+          <td>${r.item_name}</td>
+          <td>${r.user_email}</td>
+          <td>${new Date(r.start_date).toLocaleString()}</td>
+          <td>${new Date(r.end_date).toLocaleString()}</td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+
+    async function loadAvailabilitySlots() {
+      const res = await fetch('/staff/availability-rules');
+      if (!res.ok) return;
+
+      const slots = await res.json();
+      const table = document.getElementById('rulesTable');
+      table.innerHTML = '';
+
+      slots.forEach(slot => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${slot.id}</td>
+          <td>${slot.item_name}</td>
+          <td>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][slot.day_of_week]}</td>
+          <td>${slot.start_time}</td>
+          <td>${slot.end_time}</td>
+          <td><button onclick="deleteSlot(${slot.id})">Delete</button></td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+
+    async function deleteSlot(slotId) {
+      const res = await fetch(`/staff/availability-rules/${slotId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+      const msg = document.getElementById('availabilityMsg');
+
+      if (!res.ok) {
+        msg.textContent = data.error || 'Failed to delete slot';
+        return;
+      }
+
+      msg.textContent = 'Availability slot deleted';
+      loadAvailabilitySlots();
+    }
+
+    async function createSlot(e) {
+      e.preventDefault();
+
+      const msg = document.getElementById('availabilityMsg');
+      msg.textContent = '';
+
+      const payload = {
+        item_id: Number(document.getElementById('itemSelect').value),
+        day_of_week: Number(document.getElementById('day_of_week').value),
+        start_time: document.getElementById('start_time').value + ":00",
+        end_time: document.getElementById('end_time').value + ":00"
+      };
+
+      const res = await fetch('/staff/availability-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        msg.textContent = data.error || 'Failed to create slot';
+        return;
+      }
+
+      msg.textContent = 'Availability slot created';
+      document.getElementById('availabilityForm').reset();
+      loadAvailabilitySlots();
+      loadUpcomingReservations();
+    }
+
+    async function init() {
+
+      await loadStaffItems();
+      await loadUpcomingReservations();
+      await loadAvailabilitySlots();
+
+      document.getElementById('availabilityForm').addEventListener('submit', createSlot);
+    }
+
+    init();
+  </script>
+  <script src="/components/navbar.js"></script>
+</body>
+</html>

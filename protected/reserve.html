@@ -29,14 +29,13 @@
     <button type="submit">Reserve</button>
   </form>
 
-
+  <p id="message" style="color: red;"></p>
 
   <div id="calendar"></div>
-  <p id="message"></p>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
   <script src="calendar.js" defer></script>
-  
+
 
 
 
@@ -54,7 +53,11 @@
       const startDate = document.getElementById("startDate").value;
       const endDate = document.getElementById("endDate").value;
 
-      const response = await fetch(`/inventory/available?type=${type}&start=${startDate || ""}&end=${endDate || ""}`);
+      // adjust dates to ISO format for API Routes in the database
+      const start = startDate ? new Date(startDate).toISOString() : "";
+      const end = endDate ? new Date(endDate).toISOString() : "";
+
+      const response = await fetch(`/inventory/available?type=${type}&start=${start || ""}&end=${end || ""}`);
       const items = await response.json();
 
       itemSelect.innerHTML = "";
@@ -83,6 +86,7 @@
       const message = document.getElementById("message");
 
       const now = new Date();
+      now.setSeconds(0, 0);
 
       if (startDate < now) {
         message.textContent = "Start date cannot be in the past";
@@ -98,8 +102,8 @@
 
       const reservation = {
         item_id: itemSelect.value,
-        start_date: document.getElementById("startDate").value,
-        end_date: document.getElementById("endDate").value
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString()
       };
 
       const response = await fetch("/reservations", {
@@ -126,4 +130,3 @@
 
 </body>
 </html>
-
