@@ -4,6 +4,7 @@ const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
+const { startNotificationScheduler, notifyStaffOfNewReservation } = require('./notificationService');
 //const profileRoutes = require("./profile/profileRoutes");
 // Create app
 const app = express();
@@ -652,6 +653,20 @@ app.post("/reservations", requireAuth, async (req, res) => {
     await reservation.addReservation();
 
     console.log("Reservation added successfully");
+
+    const [inserted] = await db.query(
+      `SELECT id FROM reservations
+       WHERE user_id = ? AND item_id = ?
+       ORDER BY id DESC LIMIT 1`,
+      [req.session.user.id, req.body.item_id]
+    );
+
+    if (inserted.length > 0) {
+      notifyStaffOfNewReservation(inserted[0].id).catch(err =>
+        console.error('[Notifications] Staff alert failed:', err.message)
+      );
+    }
+
     res.status(201).json({ 
         message: "Reservation created successfully",
     });
@@ -926,5 +941,6 @@ app.get("/", (req,res)=>{
   res.send("Reservation System Backend Running");
 });
 
+startNotificationScheduler();
 const PORT = 3000;
 app.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
