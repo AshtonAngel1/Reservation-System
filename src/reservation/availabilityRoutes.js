@@ -20,14 +20,24 @@ function requireAdmin(req, res, next) {
 
 router.get('/', async (req, res) => {
   try {
-    const { item_id, start_date, end_date } = req.query;
+    const { item_id, item_type, start_date, end_date } = req.query;
 
-    if (!item_id || !start_date || !end_date) {
+    if (!start_date || !end_date) {
       return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    const slots = await availabilityService.getAvailability(item_id, start_date, end_date);
+    let slots;
+
+    if (item_id) {
+      slots = await availabilityService.getAvailability(item_id, start_date, end_date);
+    } else if (item_type) {
+      slots = await availabilityService.getAvailabilityByType(item_type, start_date, end_date);
+    } else {
+      return res.status(400).json({ error: 'Must provide item_id or item_type' });
+    }
+
     res.json({ availableSlots: slots });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch availability' });
@@ -121,7 +131,7 @@ router.post("/exceptions", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    if (Date(start_datetime) >= new Date(end_datetime)) {
+    if (new Date(start_datetime) >= new Date(end_datetime)) {
       return res.status(400).json({ error: "Invalid time range" });
     }
 

@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
   const calendarEl = document.getElementById('calendar');
+  const itemType = document.getElementById('itemType');
   const itemSelect = document.getElementById('itemSelect');
   const startInput = document.getElementById('startDate');
   const endInput = document.getElementById('endDate');
@@ -14,8 +15,11 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   const calendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: 'dayGridMonth',
+    initialView: 'timeGridWeek',
     height: 'auto',
+    slotMinTime: "00:00:00",
+    slotMaxTime: "24:00:00",
+    allDaySlot: false,
     validRange: { start: new Date() },
 
     // Click on an available slot event -> fill reservation form
@@ -64,20 +68,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     events: async function(fetchInfo, successCallback, failureCallback) {
       try {
-        const item_id = itemSelect.value;
+        const item_type = itemType.value;
 
-        if (!item_id) {
+        if (!item_type) {
           successCallback([]);
           return;
         }
 
         const start_date = fetchInfo.startStr.split('T')[0];
-        const endDate = new Date(fetchInfo.end);
-        endDate.setDate(endDate.getDate() - 1);
-        const end_date = endDate.toISOString().split('T')[0];
+        const end_date = fetchInfo.endStr.split('T')[0];
 
         const response = await fetch(
-          `/availability?item_id=${item_id}&start_date=${start_date}&end_date=${end_date}`,
+          `/availability?item_type=${item_type}&start_date=${start_date}&end_date=${end_date}`,
           { credentials: 'include' }
         );
 
@@ -109,4 +111,14 @@ document.addEventListener('DOMContentLoaded', function() {
   itemSelect.addEventListener('change', function() {
     calendar.refetchEvents();
   });
+
+  if (itemType.value) {
+    calendar.refetchEvents();
+  }
+
+  itemType.addEventListener('change', function() {
+    calendar.refetchEvents();
+  });
+
+
 });
