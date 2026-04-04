@@ -25,6 +25,25 @@
       </div>
     </div>
 
+    <div class="search-container">
+      <h3>Search Available Items</h3>
+
+      <input 
+        type="text" 
+        id="searchInput" 
+        placeholder="Search items or types (e.g. room, tutor, JBWS)..."
+      >
+
+      <select id="typeFilter">
+        <option value="">All Types</option>
+        <option value="room">Room</option>
+        <option value="resource">Resource</option>
+        <option value="person">Person</option>
+       </select>
+
+       <ul id="searchResults"></ul>
+    </div>
+
     <div class="dashboard-actions">
       <a href="/profile" class="btn-link">View Profile</a>
       <a href="/reserve" class="btn-link">Make Reservation</a>
@@ -64,6 +83,68 @@
 
     // Load stats when page opens
     loadDashboardStats();
+
+    const searchInput = document.getElementById("searchInput");
+    const typeFilter = document.getElementById("typeFilter");
+    const resultsList = document.getElementById("searchResults");
+
+    let debounceTimer;
+
+    // search function
+    async function searchItems() {
+      const query = searchInput.value.trim().toLowerCase();
+      const type = typeFilter.value;
+
+      // empty search → return nothing
+      if (!query && !type) {
+        resultsList.innerHTML = "";
+        return;
+      }
+
+      try {
+        const res = await fetch(`/search?q=${query}&type=${type}`);
+
+        if (!res.ok) throw new Error("Search failed");
+
+        const items = await res.json();
+
+        resultsList.innerHTML = "";
+
+        //  no results
+        if (items.length === 0) {
+          resultsList.innerHTML = "<li>No results found</li>";
+          return;
+        }
+
+        //  render results
+        items.forEach(item => {
+          const li = document.createElement("li");
+
+          li.textContent = `${item.name} (${item.type})`;
+
+          // Optional: click → go reserve page with item pre-selected
+          li.addEventListener("click", () => {
+            window.location.href = `/reserve?item_id=${item.id}`;
+          });
+
+          resultsList.appendChild(li);
+        });
+
+      } catch (err) {
+        console.error(err);
+        resultsList.innerHTML = "<li>Error loading results</li>";
+      }
+    }
+
+    //  debounce for better UX
+    searchInput.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(searchItems, 300);
+    });
+
+    typeFilter.addEventListener("change", searchItems);
+    
+    
   </script>
   <script src="/components/navbar.js"></script>
 
