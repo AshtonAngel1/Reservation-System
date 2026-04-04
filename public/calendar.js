@@ -4,7 +4,18 @@ document.addEventListener('DOMContentLoaded', function() {
   const itemSelect = document.getElementById('itemSelect');
   const startInput = document.getElementById('startDate');
   const endInput = document.getElementById('endDate');
+  const itemColors = {};
 
+  function getColorForItem(itemId) {
+    if (!itemColors[itemId]) {
+      const colors = [
+        "#4CAF50", "#2196F3", "#FF9800", "#9C27B0",
+        "#E91E63", "#00BCD4", "#8BC34A", "#FF5722"
+      ];
+      itemColors[itemId] = colors[Object.keys(itemColors).length % colors.length];
+    }
+    return itemColors[itemId];
+  }
   function toDateTimeLocal(date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -35,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
       endInput.dispatchEvent(new Event('change'));
 
       const msg = document.getElementById("message");
-      if (msg) msg.textContent = "Selected available slot from calendar.";
+      if (msg) msg.textContent = `Selected: ${info.event.title}`;
     },
 
     // Click on day -> create default 1-hour window at next hour
@@ -88,10 +99,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = await response.json();
 
         const events = (data.availableSlots || []).map(slot => ({
-          title: 'Available (click to fill form)',
+          title: `${slot.title} (Available)`,
           start: slot.start,
           end: slot.end,
-          color: 'green'
+          backgroundColor: getColorForItem(slot.item_id),
+          borderColor: getColorForItem(slot.item_id)
         }));
 
         successCallback(events);
@@ -99,6 +111,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error(err);
         failureCallback(err);
       }
+    },
+    eventDidMount: function(info) {
+      info.el.title = info.event.title;
     }
   });
 

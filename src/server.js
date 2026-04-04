@@ -278,6 +278,9 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
   }
 });
 
+const searchRoute = require('./search/searchRoutes')
+app.use('/search', searchRoute)
+
 
 //Availability Route
 
