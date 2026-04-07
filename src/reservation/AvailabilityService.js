@@ -151,8 +151,8 @@ async function getAvailabilityByType(item_type, start_date, end_date) {
         if (!isBlocked) {
           events.push({
             title: item.name,
-            start: formatDate(start),
-            end: formatDate(endTime),
+            start: formatDateForFullCalendar(start),
+            end: formatDateForFullCalendar(endTime),
             color: 'green',
             item_id: item.id
           });
