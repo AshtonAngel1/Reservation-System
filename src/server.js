@@ -5,12 +5,10 @@ const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
 const { startNotificationScheduler, notifyStaffOfNewReservation } = require('./notificationService');
-//const profileRoutes = require("./profile/profileRoutes");
+
 // Create app
 const app = express();
 
-// Use routes
-//app.use("/profile", profileRoutes);
 
 // Parse JSON requests
 app.use(express.json());
