@@ -34,6 +34,7 @@ async function loadAnalytics() {
   `;
 }
 
+// Can add ItemType later if needed (update delete button)
 async function loadReservations() {
   const res = await fetch('/admin/reservations');
   const rows = await res.json();
@@ -89,8 +90,15 @@ async function loadCancellations() {
   });
 }
 
+// Implement Delete user route
 async function loadUsers() {
   const res = await fetch('/admin/users');
+
+  if (!res.ok) {
+    alert("Failed to load users");
+    return;
+  }
+
   const rows = await res.json();
   const tbody = document.getElementById('userRows');
   tbody.innerHTML = '';
@@ -100,7 +108,10 @@ async function loadUsers() {
     tr.innerHTML = `
       <td>${u.id}</td>
       <td>${u.email}</td>
+      <td>${u.days_registered || 0}</td>
       <td>${u.total_reservations || 0}</td>
+      <td>${u.past_reservations || 0}</td>
+      <td>${u.upcoming_reservations || 0}</td>
       <td><button class="delete-user" data-id="${u.id}">Soft Delete</button></td>
     `;
     tbody.appendChild(tr);

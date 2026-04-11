@@ -9,7 +9,7 @@ const {
   notifyStaffOfNewReservation,
   notifyReservationCancellation
 } = require('./notificationService');
-//const profileRoutes = require("./profile/profileRoutes");
+
 // Create app
 const app = express();
 
