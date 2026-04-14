@@ -699,82 +699,92 @@ app.patch("/admin/users/:id/restore", requireAdmin, async (req, res) => {
 
 app.get("/admin/analytics", requireAdmin, async (req, res) => {
   try {
-    const hasReservationStatus = await tableHasColumn("reservations", "status");
-    const canceledCondition = hasReservationStatus ? "status = 'canceled'" : "1=0";
-    const activeCondition = hasReservationStatus ? "(r.status IS NULL OR r.status <> 'canceled')" : "1=1";
+    const [registeredUsersResult] = await db.query(`
+      SELECT COUNT(*) AS count FROM users WHERE active = TRUE
+    `);
 
-    const [registeredUsersResult] = await db.query(`SELECT COUNT(*) AS count FROM users`);
-    const [allReservationsResult] = await db.query(`SELECT COUNT(*) AS count FROM reservations`);
+    const [allReservationsResult] = await db.query(`
+      SELECT COUNT(*) AS count FROM reservations
+    `);
+
     const [reservationsThisMonthResult] = await db.query(`
       SELECT COUNT(*) AS count
       FROM reservations r
-      WHERE ${activeCondition}
+      WHERE r.status = 'active'
         AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
         AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
     `);
+
     const [uniqueUsersThisMonthResult] = await db.query(`
       SELECT COUNT(DISTINCT r.user_id) AS count
       FROM reservations r
-      WHERE ${activeCondition}
+      WHERE r.status = 'active'
         AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
         AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
     `);
+
     const [topItems] = await db.query(`
       SELECT i.name, COUNT(*) AS total
       FROM reservations r
       JOIN items i ON i.id = r.item_id
-      WHERE ${activeCondition}
+      WHERE r.status = 'active'
         AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
         AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
       GROUP BY i.id, i.name
       ORDER BY total DESC
       LIMIT 3
     `);
+
     const [topStaff] = await db.query(`
       SELECT CONCAT(p.first_name, ' ', p.last_name) AS staff_name, COUNT(*) AS total
       FROM reservations r
       JOIN people p ON p.item_id = r.item_id
-      WHERE ${activeCondition}
+      WHERE r.status = 'active'
         AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
         AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
       GROUP BY p.item_id, p.first_name, p.last_name
       ORDER BY total DESC
       LIMIT 3
     `);
+
     const [topUsers] = await db.query(`
       SELECT u.email, COUNT(*) AS total
       FROM reservations r
       JOIN users u ON u.id = r.user_id
-      WHERE ${activeCondition}
+      WHERE r.status = 'active'
         AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
         AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
       GROUP BY u.id, u.email
       ORDER BY total DESC
       LIMIT 3
     `);
+
     const [totalCancellationsResult] = await db.query(`
-      SELECT COUNT(*) AS count FROM reservations WHERE ${canceledCondition}
+      SELECT COUNT(*) AS count
+      FROM reservations
+      WHERE status = 'canceled'
     `);
+
     const [monthlyCancellationsResult] = await db.query(`
       SELECT COUNT(*) AS count
       FROM reservations
-      WHERE ${canceledCondition}
-        AND YEAR(start_date) = YEAR(UTC_TIMESTAMP())
-        AND MONTH(start_date) = MONTH(UTC_TIMESTAMP())
+      WHERE status = 'canceled'
+        AND deleted_at IS NOT NULL
+        AND YEAR(deleted_at) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(deleted_at) = MONTH(UTC_TIMESTAMP())
     `);
 
-    let cancellationsByCategory = [];
-    if (hasReservationStatus && await tableHasColumn("reservations", "cancel_category")) {
-      const [categoryRows] = await db.query(`
-        SELECT cancel_category AS category, COUNT(*) AS total
-        FROM reservations
-        WHERE status = 'canceled'
-          AND YEAR(start_date) = YEAR(UTC_TIMESTAMP())
-          AND MONTH(start_date) = MONTH(UTC_TIMESTAMP())
-        GROUP BY cancel_category
-      `);
-      cancellationsByCategory = categoryRows;
-    }
+    const [cancellationsByCategory] = await db.query(`
+      SELECT 
+        cancel_category AS category,
+        COUNT(*) AS total
+      FROM reservations
+      WHERE status = 'canceled'
+        AND deleted_at IS NOT NULL
+        AND YEAR(deleted_at) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(deleted_at) = MONTH(UTC_TIMESTAMP())
+      GROUP BY cancel_category
+    `);
 
     res.json({
       all_time_registered_users: registeredUsersResult[0].count,
@@ -788,6 +798,7 @@ app.get("/admin/analytics", requireAdmin, async (req, res) => {
       cancellations_this_month: monthlyCancellationsResult[0].count,
       cancellations_this_month_by_category: cancellationsByCategory
     });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
