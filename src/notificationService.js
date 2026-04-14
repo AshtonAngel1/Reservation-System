@@ -21,7 +21,7 @@ const transporter = nodemailer.createTransport({
 // ─── Dedup Guard ──────────────────────────────────────────────────────────────
 // Tracks which reservation IDs we've already sent a 10-min reminder for,
 // so we never send the same reminder twice even if the scheduler fires twice.
-const notifiedReservations = new Set();
+// const notifiedReservations = new Set();
 
 // ─── 10-Minute Reminder (runs on a schedule) ──────────────────────────────────
 async function sendUpcomingReminders() {
@@ -41,10 +41,10 @@ async function sendUpcomingReminders() {
       WHERE r.start_date BETWEEN
         DATE_ADD(UTC_TIMESTAMP(), INTERVAL 9  MINUTE) AND
         DATE_ADD(UTC_TIMESTAMP(), INTERVAL 11 MINUTE)
+      AND r.reminder_sent = 0
     `);
 
     for (const row of rows) {
-      if (notifiedReservations.has(row.id)) continue;
 
       const formattedTime = new Date(row.start_date).toLocaleString('en-US', {
         timeZone: 'UTC',
@@ -72,7 +72,11 @@ async function sendUpcomingReminders() {
         `,
       });
 
-      notifiedReservations.add(row.id);
+      // notifiedReservations.add(row.id);
+      await db.query(
+        'UPDATE reservations SET reminder_sent = 1 WHERE id=?',
+        [row.id]
+      );
       console.log(`[Notifications] Sent 10-min reminder to ${row.user_email} for reservation #${row.id}`);
     }
   } catch (err) {
