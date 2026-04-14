@@ -32,7 +32,7 @@ class ReservationImpl {
                 "INSERT INTO reservations (item_id, user_id, start_date, end_date) VALUES (?, ?, ?, ?)",
                 [this.item_id, this.user_id, startIso, endIso]
             );
-
+            return result.insertId;
         } catch (error) {
             console.error("Error adding reservation:", error);
             throw error;
