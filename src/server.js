@@ -980,6 +980,7 @@ async function cancelReservationWithAudit({ reservationId, canceledByUserId, rea
   );
 }
 
+// Admin cancellation route with reason (can delete past reservations)
 app.post("/admin/reservations/:id/cancel", requireAdmin, async (req, res) => {
   try {
     const reservationId = req.params.id;
@@ -993,7 +994,6 @@ app.post("/admin/reservations/:id/cancel", requireAdmin, async (req, res) => {
       `SELECT id, start_date
        FROM reservations
        WHERE id = ?
-         AND end_date >= UTC_TIMESTAMP()
          AND status = 'active'
          `,
       [reservationId]
@@ -1036,6 +1036,7 @@ app.post("/staff/reservations/:id/cancel", requireStaff, async (req, res) => {
        JOIN people p ON p.item_id = i.id
        WHERE r.id = ?
          AND p.user_id = ?
+         AND r.status = 'active'
          AND r.end_date >= UTC_TIMESTAMP()`,
       [reservationId, req.session.user.id]
     );
