@@ -256,7 +256,7 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
         AND r.start_date < ?
         AND r.end_date > ?
         AND (? IS NULL OR r.id != ?)
-        AND r.status IS 'active'
+        AND r.status = 'active'
 
       WHERE i.type = ?
       AND i.active = TRUE
@@ -565,6 +565,7 @@ app.get("/my-reservations", requireAuth, async (req, res) => {
       FROM reservations r
       JOIN items i ON r.item_id = i.id
       WHERE r.user_id = ?
+      AND r.status = 'active'
       ORDER BY r.start_date ASC
     `, [req.session.user.id]);
 
@@ -592,6 +593,7 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
       JOIN users u ON r.user_id = u.id
       JOIN items i ON r.item_id = i.id
       WHERE u.active = TRUE
+        AND r.status = 'active'
 
       ORDER BY r.start_date ASC
     `);
@@ -626,6 +628,39 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
       WHERE u.active = TRUE
       GROUP BY u.id
       ORDER BY u.id ASC
+    `);
+
+    res.json(users);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+//Get all deleted users for admin view
+app.get("/admin/users/deleted", requireAdmin, async (req, res) => {
+  try {
+    const [users] = await db.query(`
+      SELECT 
+        u.id,
+        u.email,
+        DATEDIFF(NOW(), u.created_at) AS days_registered,
+
+        COUNT(r.id) AS total_reservations,
+
+        SUM(CASE WHEN r.end_date < UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS past_reservations,
+
+        SUM(CASE WHEN r.start_date > UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS upcoming_reservations,
+
+        u.deleted_at
+
+      FROM users u
+      LEFT JOIN reservations r ON u.id = r.user_id
+      WHERE u.active = FALSE
+      GROUP BY u.id
+      ORDER BY u.deleted_at DESC
     `);
 
     res.json(users);
@@ -761,15 +796,6 @@ app.get("/admin/analytics", requireAdmin, async (req, res) => {
 
 app.get("/admin/cancellations", requireAdmin, async (req, res) => {
   try {
-    const hasStatusColumn = await tableHasColumn("reservations", "status");
-    if (!hasStatusColumn) {
-      return res.json([]);
-    }
-
-    const hasReason = await tableHasColumn("reservations", "cancel_reason");
-    const hasCategory = await tableHasColumn("reservations", "cancel_category");
-    const hasCanceledAt = await tableHasColumn("reservations", "canceled_at");
-
     const [rows] = await db.query(`
       SELECT
         r.id,
@@ -777,14 +803,14 @@ app.get("/admin/cancellations", requireAdmin, async (req, res) => {
         u.email AS user_email,
         r.start_date,
         r.end_date,
-        ${hasReason ? "r.cancel_reason" : "NULL"} AS cancel_reason,
-        ${hasCategory ? "r.cancel_category" : "'unknown'"} AS cancel_category,
-        ${hasCanceledAt ? "r.canceled_at" : "NULL"} AS canceled_at
+        r.cancel_reason,
+        r.cancel_category,
+        r.deleted_at
       FROM reservations r
       JOIN users u ON u.id = r.user_id
       JOIN items i ON i.id = r.item_id
       WHERE r.status = 'canceled'
-      ORDER BY COALESCE(${hasCanceledAt ? "r.canceled_at" : "r.end_date"}, r.end_date) DESC
+      ORDER BY COALESCE(r.deleted_at, r.end_date) DESC
     `);
 
     res.json(rows);
@@ -915,13 +941,12 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
 
 app.delete("/reservations/:id", requireAuth, async (req, res) => {
   try {
-    await db.query(
-      `UPDATE reservations
-       SET status = 'canceled',
-           deleted_at = UTC_TIMESTAMP()
-       WHERE id = ? AND user_id = ?`,
-      [req.params.id, req.session.user.id]
-    );
+    await cancelReservationWithAudit({
+      reservationId: req.params.id,
+      canceledByUserId: req.session.user.id,
+      reason: "Canceled by user",
+      category: "user"
+    });
 
     res.json({ message: "Reservation canceled" });
 
@@ -932,40 +957,15 @@ app.delete("/reservations/:id", requireAuth, async (req, res) => {
 });
 
 async function cancelReservationWithAudit({ reservationId, canceledByUserId, reason, category }) {
-  const hasStatusColumn = await tableHasColumn("reservations", "status");
-  const hasCanceledAt = await tableHasColumn("reservations", "canceled_at");
-  const hasCanceledBy = await tableHasColumn("reservations", "canceled_by_user_id");
-  const hasCancelReason = await tableHasColumn("reservations", "cancel_reason");
-  const hasCancelCategory = await tableHasColumn("reservations", "cancel_category");
-
-  if (!hasStatusColumn) {
-    throw new Error("Reservation cancellation columns are not available yet. Ask DB team to apply the migration.");
-  }
-
-  const sets = ["status = 'canceled'"];
-  const values = [];
-
-  if (hasCanceledAt) sets.push("canceled_at = UTC_TIMESTAMP()");
-  if (hasCanceledBy) {
-    sets.push("canceled_by_user_id = ?");
-    values.push(canceledByUserId || null);
-  }
-  if (hasCancelReason) {
-    sets.push("cancel_reason = ?");
-    values.push(reason || null);
-  }
-  if (hasCancelCategory) {
-    sets.push("cancel_category = ?");
-    values.push(category || "user");
-  }
-
-  values.push(reservationId);
-
   await db.query(
     `UPDATE reservations
-     SET ${sets.join(", ")}
+     SET status = 'canceled',
+         deleted_at = UTC_TIMESTAMP(),
+         canceled_by = ?,
+         cancel_reason = ?,
+         cancel_category = ?
      WHERE id = ?`,
-    values
+    [canceledByUserId, reason, category, reservationId]
   );
 }
 

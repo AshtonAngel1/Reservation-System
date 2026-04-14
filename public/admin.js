@@ -103,7 +103,7 @@ async function loadCancellations() {
       <td>${r.user_email}</td>
       <td>${r.cancel_category || 'unknown'}</td>
       <td>${r.cancel_reason || ''}</td>
-      <td>${r.canceled_at ? new Date(r.canceled_at).toLocaleString() : ''}</td>
+      <td>${r.deleted_at ? new Date(r.deleted_at).toLocaleString() : ''}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -112,13 +112,18 @@ async function loadCancellations() {
 // Implement Delete user route
 async function loadUsers() {
   const res = await fetch('/admin/users');
+  const deletedRes = await fetch('/admin/users/deleted');
 
-  if (!res.ok) {
+  if (!res.ok && !deletedRes.ok) {
     alert("Failed to load users");
     return;
   }
 
   const rows = await res.json();
+  const deletedRows = await deletedRes.json();
+
+  const deletedTbody = document.getElementById('deletedUserRows');
+  deletedTbody.innerHTML = '';
   const tbody = document.getElementById('userRows');
   tbody.innerHTML = '';
 
@@ -136,9 +141,27 @@ async function loadUsers() {
     tbody.appendChild(tr);
   });
 
+  deletedRows.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.id}</td>
+      <td>${u.email}</td>
+      <td>${u.days_registered || 0}</td>
+      <td><button class="restore-user" data-id="${u.id}">Restore</button></td>
+    `;
+    deletedTbody.appendChild(tr);
+  });
+
   document.querySelectorAll('.delete-user').forEach(btn => {
     btn.addEventListener('click', async () => {
       await fetch(`/admin/users/${btn.dataset.id}`, { method: 'DELETE' });
+      await loadUsers();
+    });
+  });
+
+  document.querySelectorAll('.restore-user').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await fetch(`/admin/users/${btn.dataset.id}/restore`, { method: 'PATCH' });
       await loadUsers();
     });
   });
