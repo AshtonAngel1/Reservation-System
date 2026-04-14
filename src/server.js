@@ -177,7 +177,7 @@ app.get("/dashboard-stats", requireAuth, async (req, res) => {
     );
 
     const [upcomingResult] = await db.query(
-      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= UTC_TIMESTAMP()",
+      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= UTC_TIMESTAMP() AND status = 'active'",
       [userId]
     );
 
@@ -256,6 +256,7 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
         AND r.start_date < ?
         AND r.end_date > ?
         AND (? IS NULL OR r.id != ?)
+        AND r.status IS 'active'
 
       WHERE i.type = ?
       AND i.active = TRUE
@@ -303,36 +304,15 @@ const availabilityRoutes = require('./reservation/availabilityRoutes');
 const reservationUtils = require('./utils/reservationUtils');
 app.use('/availability', requireAuth, availabilityRoutes)
 
-// Deprecated
-app.post("/availability-slots", requireAdmin, async (req, res) => {
-  try {
-    const { item_id, start_time, end_time } = req.body;
 
-    if (!item_id || !start_time || !end_time) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    if (new Date(start_time) >= new Date(end_time)) {
-      return res.status(400).json({ error: "End time must be after start time" });
-    }
-
-    const startIso = reservationUtils.toMySQLDatetime(start_time);
-    const endIso = reservationUtils.toMySQLDatetime(end_time);
-
-    await db.query(
-      `INSERT INTO availability_slots (item_id, start_time, end_time)
-       VALUES (?, ?, ?)`,
-      [item_id, startIso, endIso]
-    );
-
-    res.status(201).json({ message: "Availability slot created" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error: " + err.message });
-  }
-});
-
+async function softDeleteItem(id) {
+  await db.query(
+    `UPDATE items 
+     SET active = FALSE, deleted_at = UTC_TIMESTAMP()
+     WHERE id = ?`,
+    [id]
+  );
+}
 
 // Rooms
 app.post("/rooms", requireAdmin, async (req, res) => {
@@ -374,12 +354,11 @@ app.post("/rooms", requireAdmin, async (req, res) => {
 });
 app.delete("/rooms/:id", requireAdmin, async (req,res)=>{
   try {
-    await db.query("UPDATE items SET active = FALSE WHERE id = ?", [req.params.id]);
+    await softDeleteItem(req.params.id);
     res.json({ message: "Room soft deleted" });
-
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -418,12 +397,11 @@ app.post("/resources", requireAdmin, async (req, res) => {
 
 app.delete("/resources/:id", requireAdmin, async (req,res)=>{
   try {
-  await db.query("UPDATE items SET active = FALSE WHERE id = ?", [req.params.id]);
-  res.json({ message: "Resource soft deleted" });
-    
+    await softDeleteItem(req.params.id);
+    res.json({ message: "Resource soft deleted" });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -464,12 +442,11 @@ app.post("/people", requireAdmin, async (req, res) => {
 
 app.delete("/people/:id", requireAdmin, async (req,res)=>{
   try {
-    await db.query("UPDATE items SET active = FALSE WHERE id = ?", [req.params.id]);
+    await softDeleteItem(req.params.id);
     res.json({ message: "Person soft deleted" });
-
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -599,7 +576,7 @@ app.get("/my-reservations", requireAuth, async (req, res) => {
   }
 });
 
-
+// Admin view all reservations will need to be Updated
 app.get("/admin/reservations", requireAdmin, async (req, res) => {
   try {
     const [reservations] = await db.query(`
@@ -614,6 +591,8 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN items i ON r.item_id = i.id
+      WHERE u.active = TRUE
+
       ORDER BY r.start_date ASC
     `);
 
@@ -644,6 +623,7 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
 
       FROM users u
       LEFT JOIN reservations r ON u.id = r.user_id
+      WHERE u.active = TRUE
       GROUP BY u.id
       ORDER BY u.id ASC
     `);
@@ -658,33 +638,28 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
 
 app.delete("/admin/users/:id", requireAdmin, async (req, res) => {
   try {
-    const userId = req.params.id;
-    const updates = [];
-    const values = [];
+    await db.query(
+      `UPDATE users 
+       SET active = FALSE, deleted_at = UTC_TIMESTAMP()
+       WHERE id = ?`,
+      [req.params.id]
+    );
 
-    if (await tableHasColumn("users", "active")) {
-      updates.push("active = FALSE");
-    }
-    if (await tableHasColumn("users", "is_active")) {
-      updates.push("is_active = FALSE");
-    }
-    if (await tableHasColumn("users", "deleted_at")) {
-      updates.push("deleted_at = UTC_TIMESTAMP()");
-    }
-
-    if (updates.length === 0) {
-      return res.status(400).json({
-        error: "Soft-delete columns are not available on users yet. Ask DB team to add active/deleted_at columns."
-      });
-    }
-
-    values.push(userId);
-    await db.query(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values);
     res.json({ message: "User soft deleted" });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// Implement Restore user route
+app.patch("/admin/users/:id/restore", requireAdmin, async (req, res) => {
+  await db.query(
+    `UPDATE users SET active = TRUE, deleted_at = NULL WHERE id = ?`,
+    [req.params.id]
+  );
+  res.json({ message: "User restored" });
 });
 
 app.get("/admin/analytics", requireAdmin, async (req, res) => {
@@ -868,7 +843,7 @@ app.get("/reservations/:id", requireAuth, async (req, res) => {
       SELECT r.id, r.item_id, r.start_date, r.end_date, i.name AS item_name, i.type AS item_type
       FROM reservations r
       JOIN items i ON r.item_id = i.id
-      WHERE r.id = ? AND r.user_id = ?
+      WHERE r.id = ? AND r.user_id = ? AND r.status = 'active'
     `, [reservationId, userId]);
 
     if (reservations.length === 0) {
@@ -940,24 +915,19 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
 
 app.delete("/reservations/:id", requireAuth, async (req, res) => {
   try {
-    
-    const hasStatusColumn = await tableHasColumn("reservations", "status");
-    if (hasStatusColumn) {
     await db.query(
-        `UPDATE reservations
-         SET status = 'canceled'
-         WHERE id = ? AND user_id = ?`,
-        [req.params.id, req.session.user.id]
-      );
-      return res.json({ message: "Reservation canceled" });
-    }
+      `UPDATE reservations
+       SET status = 'canceled',
+           deleted_at = UTC_TIMESTAMP()
+       WHERE id = ? AND user_id = ?`,
+      [req.params.id, req.session.user.id]
+    );
 
-    await db.query("DELETE FROM reservations WHERE id = ? AND user_id = ?", [req.params.id, req.session.user.id]);
-    res.json({ message: "Reservation deleted (legacy mode)" });
+    res.json({ message: "Reservation canceled" });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -1012,7 +982,9 @@ app.post("/admin/reservations/:id/cancel", requireAdmin, async (req, res) => {
       `SELECT id, start_date
        FROM reservations
        WHERE id = ?
-         AND end_date >= UTC_TIMESTAMP()`,
+         AND end_date >= UTC_TIMESTAMP()
+         AND status = 'active'
+         `,
       [reservationId]
     );
     if (rows.length === 0) {
@@ -1155,6 +1127,8 @@ app.get("/staff/upcoming-reservations", requireStaff, async (req, res) => {
       JOIN people p ON p.item_id = i.id
       WHERE p.user_id = ?
         AND r.start_date >= UTC_TIMESTAMP()
+        AND u.active = TRUE
+        AND r.status = 'active'
       ORDER BY r.start_date ASC
     `, [req.session.user.id]);
 
@@ -1169,7 +1143,7 @@ app.get("/staff/upcoming-reservations", requireStaff, async (req, res) => {
 
 app.get('/admin/staff-users', requireAdmin, async (req, res) => {
   const [rows] = await db.query(`
-    SELECT id, email FROM users WHERE is_staff = 1
+    SELECT id, email FROM users WHERE is_staff = 1 AND active = TRUE
   `);
   res.json(rows);
 });

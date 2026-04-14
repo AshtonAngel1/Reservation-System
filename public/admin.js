@@ -39,19 +39,38 @@ async function loadReservations() {
   const res = await fetch('/admin/reservations');
   const rows = await res.json();
   const tbody = document.getElementById('reservationRows');
+  const pastTbody = document.getElementById('pastReservationRows');
   tbody.innerHTML = '';
+  pastTbody.innerHTML = '';
 
-  rows.forEach(r => {
+  const activeRes = rows.filter(r => new Date(r.end_date) >= new Date());
+  activeRes.forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.id}</td>
       <td>${r.item_name}</td>
+      <td>${r.item_type}</td>
       <td>${r.user_email}</td>
       <td>${new Date(r.start_date).toLocaleString()}</td>
       <td>${new Date(r.end_date).toLocaleString()}</td>
       <td><button data-id="${r.id}" class="cancel-res-btn">Cancel</button></td>
     `;
     tbody.appendChild(tr);
+  });
+
+  const pastRes = rows.filter(r => new Date(r.end_date) < new Date());
+  pastRes.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.id}</td>
+      <td>${r.item_name}</td>
+      <td>${r.item_type}</td>
+      <td>${r.user_email}</td>
+      <td>${new Date(r.start_date).toLocaleString()}</td>
+      <td>${new Date(r.end_date).toLocaleString()}</td>
+      <td><button data-id="${r.id}" class="cancel-res-btn">Soft Delete</button></td>
+    `;
+    pastTbody.appendChild(tr);
   });
 
   document.querySelectorAll('.cancel-res-btn').forEach(btn => {

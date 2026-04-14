@@ -19,12 +19,20 @@
     <div id="analytics" class="card admin-panel"></div>
 
     <div id="reservations" class="card admin-panel" style="display:none;">
-      <h2>All Reservations</h2>
+      <h2>Active Reservations</h2>
       <table border="1">
         <thead>
-          <tr><th>ID</th><th>Item</th><th>User</th><th>Start</th><th>End</th><th>Cancel</th></tr>
+          <tr><th>ID</th><th>Item</th><th>Item Type</th><th>User</th><th>Start</th><th>End</th><th>Cancel</th></tr>
         </thead>
         <tbody id="reservationRows"></tbody>
+      </table>
+
+      <h2>Past Reservations</h2>
+      <table border="1">
+        <thead>
+          <tr><th>ID</th><th>Item</th><th>Item Type</th><th>User</th><th>Start</th><th>End</th><th>Delete</th></tr>
+        </thead>
+        <tbody id="pastReservationRows"></tbody>
       </table>
     </div>
 
