@@ -16,7 +16,7 @@
         <th>User Email</th>
         <th>Start</th>
         <th>End</th>
-        <th>Delete</th>
+        <th>Cancel</th>
       </tr>
     </thead>
     <tbody id="reservationTable"></tbody>
@@ -62,7 +62,7 @@
           <td>${new Date(r.start_date).toLocaleString()}</td>
           <td>${new Date(r.end_date).toLocaleString()}</td>
           <td>
-            <button onclick="deleteReservation(${r.id})">Delete</button>
+            <button onclick="deleteReservation(${r.id})">Cancel</button>
           </td>
         `;
         table.appendChild(row);
