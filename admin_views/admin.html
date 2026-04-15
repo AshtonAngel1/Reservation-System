@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Unified Admin Console</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page">
+    <h1>Unified Administrator View</h1>
+
+    <div class="card">
+      <button class="admin-tab" data-tab="analytics">Analytics</button>
+      <button class="admin-tab" data-tab="reservations">Reservations</button>
+      <button class="admin-tab" data-tab="cancellations">Cancellations</button>
+      <button class="admin-tab" data-tab="users">Users</button>
+      <button class="admin-tab" data-tab="inventory">Inventory</button>
+    </div>
+
+    <div id="analytics" class="card admin-panel"></div>
+
+    <div id="reservations" class="card admin-panel" style="display:none;">
+      <h2>Active Reservations</h2>
+      <table border="1">
+        <thead>
+          <tr><th>ID</th><th>Item</th><th>Item Type</th><th>User</th><th>Start</th><th>End</th><th>Cancel</th></tr>
+        </thead>
+        <tbody id="reservationRows"></tbody>
+      </table>
+
+      <h2>Past Reservations</h2>
+      <table border="1">
+        <thead>
+          <tr><th>ID</th><th>Item</th><th>Item Type</th><th>User</th><th>Start</th><th>End</th><th>Delete</th></tr>
+        </thead>
+        <tbody id="pastReservationRows"></tbody>
+      </table>
+    </div>
+
+    <div id="cancellations" class="card admin-panel" style="display:none;">
+      <h2>Cancellation Audit</h2>
+      <table border="1">
+        <thead>
+          <tr><th>ID</th><th>Item</th><th>User</th><th>Category</th><th>Reason</th><th>Canceled At</th></tr>
+        </thead>
+        <tbody id="cancellationRows"></tbody>
+      </table>
+    </div>
+
+    <div id="users" class="card admin-panel" style="display:none;">
+      <h2>Users</h2>
+      <table border="1">
+        <thead>
+          <tr>
+            <th>User ID</th>
+            <th>Email</th>
+            <th>Days Registered</th>
+            <th>Total Reservations</th>
+            <th>Past Reservations</th>
+            <th>Upcoming Reservations</th>
+            <th>Soft Delete</th>
+          </tr>
+        </thead>
+        <tbody id="userRows"></tbody>
+      </table>
+
+      <h2>Deleted Users</h2>
+      <table border="1">
+        <thead>
+          <tr>
+            <th>User ID</th>
+            <th>Email</th>
+            <th>Days Registered</th>
+            <th>Restore</th>
+          </tr>
+        </thead>
+        <tbody id="deletedUserRows"></tbody>
+      </table>
+    </div>
+
+    <div id="inventory" class="card admin-panel" style="display:none;">
+      <h2>Inventory</h2>
+      <p>Use the existing inventory management UI for create/edit/delete workflows:</p>
+      <p><a href="/admin/inventory">Open Inventory Management</a></p>
+    </div>
+  </div>
+
+  <script src="/admin.js"></script>
+  <script src="/components/navbar.js"></script>
+</body>
+</html>

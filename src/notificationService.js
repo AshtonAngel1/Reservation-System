@@ -179,4 +179,56 @@ function startNotificationScheduler() {
   setInterval(sendUpcomingReminders, 60 * 1000);
 }
 
-module.exports = { startNotificationScheduler, notifyStaffOfNewReservation };
+async function notifyReservationCancellation(reservationId, reason, canceledByCategory = 'user') {
+  try {
+    const [rows] = await db.query(`
+      SELECT
+        r.id,
+        r.start_date,
+        r.end_date,
+        i.name AS item_name,
+        i.type AS item_type,
+        u_user.email AS user_email,
+        u_staff.email AS staff_email
+      FROM reservations r
+      JOIN items i ON i.id = r.item_id
+      JOIN users u_user ON u_user.id = r.user_id
+      LEFT JOIN people p ON p.item_id = r.item_id
+      LEFT JOIN users u_staff ON u_staff.id = p.user_id
+      WHERE r.id = ?
+    `, [reservationId]);
+
+    if (rows.length === 0) return;
+    const row = rows[0];
+
+    const start = new Date(row.start_date).toLocaleString('en-US', {
+      timeZone: 'UTC',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+
+    const recipients = new Set([row.user_email]);
+    if (row.staff_email) recipients.add(row.staff_email);
+
+    for (const email of recipients) {
+      await transporter.sendMail({
+        from: `"Reservation System" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: `❌ Reservation #${row.id} canceled`,
+        html: `
+          <div style="font-family:Arial,sans-serif; max-width:500px;">
+            <h2>Reservation Canceled</h2>
+            <p>Your reservation for <strong>${row.item_name}</strong> was canceled.</p>
+            <p><strong>Start:</strong> ${start} UTC</p>
+            <p><strong>Canceled by:</strong> ${canceledByCategory}</p>
+            <p><strong>Reason:</strong> ${reason || 'No reason provided'}</p>
+          </div>
+        `
+      });
+    }
+  } catch (err) {
+    console.error('[Notifications] Error sending cancellation alerts:', err.message);
+  }
+}
+
+module.exports = { startNotificationScheduler, notifyStaffOfNewReservation, notifyReservationCancellation };

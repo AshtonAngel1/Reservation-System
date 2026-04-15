@@ -4,13 +4,15 @@ const express = require("express");
 const path = require("path");
 const userImpl = require('./reservation/userImpl');
 const ReservationImpl = require('./reservation/reservationImpl');
-const { startNotificationScheduler, notifyStaffOfNewReservation } = require('./notificationService');
-//const profileRoutes = require("./profile/profileRoutes");
+const {
+  startNotificationScheduler,
+  notifyStaffOfNewReservation,
+  notifyReservationCancellation
+} = require('./notificationService');
+
 // Create app
 const app = express();
 
-// Use routes
-//app.use("/profile", profileRoutes);
 
 // Parse JSON requests
 app.use(express.json());
@@ -59,6 +61,19 @@ function preventLoggedInAccess(req, res, next) {
     return res.redirect("/");
   }
   next();
+}
+
+async function tableHasColumn(tableName, columnName) {
+  const [rows] = await db.query(
+    `SELECT 1
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+     LIMIT 1`,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
 }
 
 // --------- API ROUTES ---------
@@ -162,7 +177,7 @@ app.get("/dashboard-stats", requireAuth, async (req, res) => {
     );
 
     const [upcomingResult] = await db.query(
-      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= UTC_TIMESTAMP()",
+      "SELECT COUNT(*) AS upcoming FROM reservations WHERE user_id = ? AND end_date >= UTC_TIMESTAMP() AND status = 'active'",
       [userId]
     );
 
@@ -241,6 +256,7 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
         AND r.start_date < ?
         AND r.end_date > ?
         AND (? IS NULL OR r.id != ?)
+        AND r.status = 'active'
 
       WHERE i.type = ?
       AND i.active = TRUE
@@ -288,36 +304,15 @@ const availabilityRoutes = require('./reservation/availabilityRoutes');
 const reservationUtils = require('./utils/reservationUtils');
 app.use('/availability', requireAuth, availabilityRoutes)
 
-// Deprecated
-app.post("/availability-slots", requireAdmin, async (req, res) => {
-  try {
-    const { item_id, start_time, end_time } = req.body;
 
-    if (!item_id || !start_time || !end_time) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    if (new Date(start_time) >= new Date(end_time)) {
-      return res.status(400).json({ error: "End time must be after start time" });
-    }
-
-    const startIso = reservationUtils.toMySQLDatetime(start_time);
-    const endIso = reservationUtils.toMySQLDatetime(end_time);
-
-    await db.query(
-      `INSERT INTO availability_slots (item_id, start_time, end_time)
-       VALUES (?, ?, ?)`,
-      [item_id, startIso, endIso]
-    );
-
-    res.status(201).json({ message: "Availability slot created" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error: " + err.message });
-  }
-});
-
+async function softDeleteItem(id) {
+  await db.query(
+    `UPDATE items 
+     SET active = FALSE, deleted_at = UTC_TIMESTAMP()
+     WHERE id = ?`,
+    [id]
+  );
+}
 
 // Rooms
 app.post("/rooms", requireAdmin, async (req, res) => {
@@ -359,12 +354,11 @@ app.post("/rooms", requireAdmin, async (req, res) => {
 });
 app.delete("/rooms/:id", requireAdmin, async (req,res)=>{
   try {
-    await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
-    res.json({ message: "Room Deleted" });
-
+    await softDeleteItem(req.params.id);
+    res.json({ message: "Room soft deleted" });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -403,12 +397,11 @@ app.post("/resources", requireAdmin, async (req, res) => {
 
 app.delete("/resources/:id", requireAdmin, async (req,res)=>{
   try {
-  await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
-  res.json({ message: "Resource Deleted" });
-
+    await softDeleteItem(req.params.id);
+    res.json({ message: "Resource soft deleted" });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -449,12 +442,11 @@ app.post("/people", requireAdmin, async (req, res) => {
 
 app.delete("/people/:id", requireAdmin, async (req,res)=>{
   try {
-    await db.query("DELETE FROM items WHERE id = ?", [req.params.id]);
-    res.json({ message: "Person Deleted" });
-
+    await softDeleteItem(req.params.id);
+    res.json({ message: "Person soft deleted" });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -573,6 +565,7 @@ app.get("/my-reservations", requireAuth, async (req, res) => {
       FROM reservations r
       JOIN items i ON r.item_id = i.id
       WHERE r.user_id = ?
+      AND r.status = 'active'
       ORDER BY r.start_date ASC
     `, [req.session.user.id]);
 
@@ -584,7 +577,7 @@ app.get("/my-reservations", requireAuth, async (req, res) => {
   }
 });
 
-
+// Admin view all reservations will need to be Updated
 app.get("/admin/reservations", requireAdmin, async (req, res) => {
   try {
     const [reservations] = await db.query(`
@@ -599,6 +592,9 @@ app.get("/admin/reservations", requireAdmin, async (req, res) => {
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN items i ON r.item_id = i.id
+      WHERE u.active = TRUE
+        AND r.status = 'active'
+
       ORDER BY r.start_date ASC
     `);
 
@@ -629,12 +625,206 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
 
       FROM users u
       LEFT JOIN reservations r ON u.id = r.user_id
+      WHERE u.active = TRUE
       GROUP BY u.id
       ORDER BY u.id ASC
     `);
 
     res.json(users);
 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+//Get all deleted users for admin view
+app.get("/admin/users/deleted", requireAdmin, async (req, res) => {
+  try {
+    const [users] = await db.query(`
+      SELECT 
+        u.id,
+        u.email,
+        DATEDIFF(NOW(), u.created_at) AS days_registered,
+
+        COUNT(r.id) AS total_reservations,
+
+        SUM(CASE WHEN r.end_date < UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS past_reservations,
+
+        SUM(CASE WHEN r.start_date > UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS upcoming_reservations,
+
+        u.deleted_at
+
+      FROM users u
+      LEFT JOIN reservations r ON u.id = r.user_id
+      WHERE u.active = FALSE
+      GROUP BY u.id
+      ORDER BY u.deleted_at DESC
+    `);
+
+    res.json(users);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.delete("/admin/users/:id", requireAdmin, async (req, res) => {
+  try {
+    await db.query(
+      `UPDATE users 
+       SET active = FALSE, deleted_at = UTC_TIMESTAMP()
+       WHERE id = ?`,
+      [req.params.id]
+    );
+
+    res.json({ message: "User soft deleted" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Implement Restore user route
+app.patch("/admin/users/:id/restore", requireAdmin, async (req, res) => {
+  await db.query(
+    `UPDATE users SET active = TRUE, deleted_at = NULL WHERE id = ?`,
+    [req.params.id]
+  );
+  res.json({ message: "User restored" });
+});
+
+app.get("/admin/analytics", requireAdmin, async (req, res) => {
+  try {
+    const [registeredUsersResult] = await db.query(`
+      SELECT COUNT(*) AS count FROM users WHERE active = TRUE
+    `);
+
+    const [allReservationsResult] = await db.query(`
+      SELECT COUNT(*) AS count FROM reservations
+    `);
+
+    const [reservationsThisMonthResult] = await db.query(`
+      SELECT COUNT(*) AS count
+      FROM reservations r
+      WHERE r.status = 'active'
+        AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
+    `);
+
+    const [uniqueUsersThisMonthResult] = await db.query(`
+      SELECT COUNT(DISTINCT r.user_id) AS count
+      FROM reservations r
+      WHERE r.status = 'active'
+        AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
+    `);
+
+    const [topItems] = await db.query(`
+      SELECT i.name, COUNT(*) AS total
+      FROM reservations r
+      JOIN items i ON i.id = r.item_id
+      WHERE r.status = 'active'
+        AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
+      GROUP BY i.id, i.name
+      ORDER BY total DESC
+      LIMIT 3
+    `);
+
+    const [topStaff] = await db.query(`
+      SELECT CONCAT(p.first_name, ' ', p.last_name) AS staff_name, COUNT(*) AS total
+      FROM reservations r
+      JOIN people p ON p.item_id = r.item_id
+      WHERE r.status = 'active'
+        AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
+      GROUP BY p.item_id, p.first_name, p.last_name
+      ORDER BY total DESC
+      LIMIT 3
+    `);
+
+    const [topUsers] = await db.query(`
+      SELECT u.email, COUNT(*) AS total
+      FROM reservations r
+      JOIN users u ON u.id = r.user_id
+      WHERE r.status = 'active'
+        AND YEAR(r.start_date) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(r.start_date) = MONTH(UTC_TIMESTAMP())
+      GROUP BY u.id, u.email
+      ORDER BY total DESC
+      LIMIT 3
+    `);
+
+    const [totalCancellationsResult] = await db.query(`
+      SELECT COUNT(*) AS count
+      FROM reservations
+      WHERE status = 'canceled'
+    `);
+
+    const [monthlyCancellationsResult] = await db.query(`
+      SELECT COUNT(*) AS count
+      FROM reservations
+      WHERE status = 'canceled'
+        AND deleted_at IS NOT NULL
+        AND YEAR(deleted_at) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(deleted_at) = MONTH(UTC_TIMESTAMP())
+    `);
+
+    const [cancellationsByCategory] = await db.query(`
+      SELECT 
+        cancel_category AS category,
+        COUNT(*) AS total
+      FROM reservations
+      WHERE status = 'canceled'
+        AND deleted_at IS NOT NULL
+        AND YEAR(deleted_at) = YEAR(UTC_TIMESTAMP())
+        AND MONTH(deleted_at) = MONTH(UTC_TIMESTAMP())
+      GROUP BY cancel_category
+    `);
+
+    res.json({
+      all_time_registered_users: registeredUsersResult[0].count,
+      all_time_reservations: allReservationsResult[0].count,
+      reservations_this_month: reservationsThisMonthResult[0].count,
+      unique_users_this_month: uniqueUsersThisMonthResult[0].count,
+      top_three_requested_items_this_month: topItems,
+      top_three_staff_this_month: topStaff,
+      top_three_users_this_month: topUsers,
+      total_cancellations: totalCancellationsResult[0].count,
+      cancellations_this_month: monthlyCancellationsResult[0].count,
+      cancellations_this_month_by_category: cancellationsByCategory
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.get("/admin/cancellations", requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT
+        r.id,
+        i.name AS item_name,
+        u.email AS user_email,
+        r.start_date,
+        r.end_date,
+        r.cancel_reason,
+        r.cancel_category,
+        r.deleted_at
+      FROM reservations r
+      JOIN users u ON u.id = r.user_id
+      JOIN items i ON i.id = r.item_id
+      WHERE r.status = 'canceled'
+      ORDER BY COALESCE(r.deleted_at, r.end_date) DESC
+    `);
+
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -707,7 +897,7 @@ app.get("/reservations/:id", requireAuth, async (req, res) => {
       SELECT r.id, r.item_id, r.start_date, r.end_date, i.name AS item_name, i.type AS item_type
       FROM reservations r
       JOIN items i ON r.item_id = i.id
-      WHERE r.id = ? AND r.user_id = ?
+      WHERE r.id = ? AND r.user_id = ? AND r.status = 'active'
     `, [reservationId, userId]);
 
     if (reservations.length === 0) {
@@ -783,16 +973,115 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
 
 app.delete("/reservations/:id", requireAuth, async (req, res) => {
   try {
-    
-    await db.query("DELETE FROM reservations WHERE id = ? AND user_id = ?", [req.params.id, req.session.user.id]); 
-    res.json({ message: "Reservation Deleted" });
+    await cancelReservationWithAudit({
+      reservationId: req.params.id,
+      canceledByUserId: req.session.user.id,
+      reason: "Canceled by user",
+      category: "user"
+    });
+
+    res.json({ message: "Reservation canceled" });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
+async function cancelReservationWithAudit({ reservationId, canceledByUserId, reason, category }) {
+  await db.query(
+    `UPDATE reservations
+     SET status = 'canceled',
+         deleted_at = UTC_TIMESTAMP(),
+         canceled_by = ?,
+         cancel_reason = ?,
+         cancel_category = ?
+     WHERE id = ?`,
+    [canceledByUserId, reason, category, reservationId]
+  );
+}
+
+// Admin cancellation route with reason (can delete past reservations)
+app.post("/admin/reservations/:id/cancel", requireAdmin, async (req, res) => {
+  try {
+    const reservationId = req.params.id;
+    const { reason } = req.body;
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Reason is required for admin cancellation" });
+    }
+
+    const [rows] = await db.query(
+      `SELECT id, start_date
+       FROM reservations
+       WHERE id = ?
+         AND status = 'active'
+         `,
+      [reservationId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Only current/future reservations can be canceled" });
+    }
+
+    await cancelReservationWithAudit({
+      reservationId,
+      canceledByUserId: req.session.user.id,
+      reason: reason.trim(),
+      category: "admin"
+    });
+
+    notifyReservationCancellation(reservationId, reason.trim(), "admin").catch(err =>
+      console.error("[Notifications] Cancellation alert failed:", err.message)
+    );
+
+    res.json({ message: "Reservation canceled by admin" });
+  } catch (err) {
+    console.error(err);
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/staff/reservations/:id/cancel", requireStaff, async (req, res) => {
+  try {
+    const reservationId = req.params.id;
+    const { reason } = req.body;
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Reason is required for staff cancellation" });
+    }
+
+    const [rows] = await db.query(
+      `SELECT r.id
+       FROM reservations r
+       JOIN items i ON r.item_id = i.id
+       JOIN people p ON p.item_id = i.id
+       WHERE r.id = ?
+         AND p.user_id = ?
+         AND r.status = 'active'
+         AND r.end_date >= UTC_TIMESTAMP()`,
+      [reservationId, req.session.user.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Reservation not found for this staff member or already past" });
+    }
+
+    await cancelReservationWithAudit({
+      reservationId,
+      canceledByUserId: req.session.user.id,
+      reason: reason.trim(),
+      category: "staff"
+    });
+
+    notifyReservationCancellation(reservationId, reason.trim(), "staff").catch(err =>
+      console.error("[Notifications] Cancellation alert failed:", err.message)
+    );
+
+    res.json({ message: "Reservation canceled by staff" });
+  } catch (err) {
+    console.error(err);
+    return res.status(400).json({ error: err.message });
+  }
+});
 
 // Staff Routes
 app.get("/staff/items", requireStaff, async (req, res) => {
@@ -871,6 +1160,8 @@ app.get("/staff/upcoming-reservations", requireStaff, async (req, res) => {
       JOIN people p ON p.item_id = i.id
       WHERE p.user_id = ?
         AND r.start_date >= UTC_TIMESTAMP()
+        AND u.active = TRUE
+        AND r.status = 'active'
       ORDER BY r.start_date ASC
     `, [req.session.user.id]);
 
@@ -885,7 +1176,7 @@ app.get("/staff/upcoming-reservations", requireStaff, async (req, res) => {
 
 app.get('/admin/staff-users', requireAdmin, async (req, res) => {
   const [rows] = await db.query(`
-    SELECT id, email FROM users WHERE is_staff = 1
+    SELECT id, email FROM users WHERE is_staff = 1 AND active = TRUE
   `);
   res.json(rows);
 });
@@ -894,12 +1185,21 @@ app.get('/admin/staff-users', requireAdmin, async (req, res) => {
 app.delete("/admin/reservations/:id", requireAdmin, async (req, res) => {
   try {
     
-    await db.query("DELETE FROM reservations WHERE id = ?", [req.params.id]); 
-    res.json({ message: "Reservation Deleted by Admin" });
+        const reason = (req.body?.reason || "Canceled by admin").trim();
+    await cancelReservationWithAudit({
+      reservationId: req.params.id,
+      canceledByUserId: req.session.user.id,
+      reason,
+      category: "admin"
+    });
+    notifyReservationCancellation(req.params.id, reason, "admin").catch(err =>
+      console.error("[Notifications] Cancellation alert failed:", err.message)
+    );
+    res.json({ message: "Reservation canceled by admin" });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error: " + err.message });
+    return res.status(400).json({ message: "Server error: " + err.message });
   }
 });
 
@@ -926,6 +1226,10 @@ app.get("/admin/inventory", requireAdmin, (req, res) => {
 
 app.get("/admin/users-page", requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "../admin_views/view-users.html"));
+});
+
+app.get("/admin", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "../admin_views/admin.html"));
 });
 
 app.get("/login", preventLoggedInAccess, (req, res) => {

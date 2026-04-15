@@ -22,7 +22,7 @@ class reservationUtils {
 
     static async checkForConflicts(reservation) {
         const [conflicts] = await db.query(
-            "SELECT * FROM reservations WHERE item_id = ? AND id != ? AND start_date < ? AND end_date > ?",
+            "SELECT * FROM reservations WHERE item_id = ? AND id != ? AND start_date < ? AND end_date > ? AND status = 'active'",
             [reservation.item_id, reservation.id, reservation.start_date, reservation.end_date]
         );
 
