@@ -843,9 +843,25 @@ app.post("/reservations", requireAuth, async (req, res) => {
     );
 
     await reservation.validateReservation();
+    const newId = await reservation.addReservation();
+
+    console.log("Reservation added successfully");
+
+    notifyStaffOfNewReservation(newId).catch(err =>
+      console.error('[Notifications] Staff alert failed:', err.message)
+    );
+
+    res.status(201).json({message: "Reservation created successfully"});
+
+    // old code inserted reservation then immediately did a second db query for the ID that was just created
+    // changed reservationImpl.js' addReservation method to return result.insertId which is SQL's representation of the new ID
+    // before this change, if two users booked at the same moment, the old select would return the other user's ID
+
+/*
     await reservation.addReservation();
 
     console.log("Reservation added successfully");
+    
 
     const [inserted] = await db.query(
       `SELECT id FROM reservations
@@ -863,6 +879,7 @@ app.post("/reservations", requireAuth, async (req, res) => {
     res.status(201).json({ 
         message: "Reservation created successfully",
     });
+*/
 
   } catch (err) {
     console.error(err);
@@ -940,6 +957,10 @@ app.put("/reservations/:id", requireAuth, async (req, res) => {
        SET item_id = ?, start_date = ?, end_date = ?
        WHERE id = ?`,
       [reservation.item_id, startIso, endIso, reservationId]
+    );
+
+    notifyStaffOfNewReservation(reservationId).catch(err =>
+      console.error('[Notifications] Staff alert on edit failed:', err.message)
     );
 
     res.json({ message: "Reservation updated successfully" });
