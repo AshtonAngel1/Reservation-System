@@ -213,19 +213,36 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
       return res.json(rows);
     }
 
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    const startLocal = new Date(start);
+    const endLocal = new Date(end);
 
-    // enforce single-day (same as validation)
-    if (startDate.toDateString() !== endDate.toDateString()) {
+    if (isNaN(startLocal) || isNaN(endLocal)) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    // SAME-DAY CHECK IN LOCAL TIME (what the user expects)
+    const sameDay =
+      startLocal.getFullYear() === endLocal.getFullYear() &&
+      startLocal.getMonth() === endLocal.getMonth() &&
+      startLocal.getDate() === endLocal.getDate();
+
+    if (!sameDay) {
       return res.status(400).json({ error: "Must be same-day reservation" });
     }
 
-    // Local Time
-    const dayOfWeek = startDate.getDay();
-    const startTime = startDate.toTimeString().slice(0, 8);
-    const endTime = endDate.toTimeString().slice(0, 8);
-    const startDateOnly = startDate.toISOString().slice(0, 10);
+    // Convert to UTC for DB comparisons
+    const startUTC = new Date(startLocal.getTime() - startLocal.getTimezoneOffset() * 60000);
+    const endUTC = new Date(endLocal.getTime() - endLocal.getTimezoneOffset() * 60000);
+
+    const dayOfWeek = startLocal.getDay(); // use LOCAL day for availability rules
+
+    const startTime = startLocal.toTimeString().slice(0, 8);
+    const endTime = endLocal.toTimeString().slice(0, 8);
+
+    const startDateOnly = startUTC.toISOString().slice(0, 10);
+
+    // console.log("LOCAL:", startLocal, endLocal);
+    // console.log("UTC:", startUTC, endUTC);
 
     const [rows] = await db.query(`
       SELECT i.id, i.name, i.type
@@ -272,14 +289,14 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
       startDateOnly,
       startDateOnly,
 
-      endDate,
-      startDate,
+      endUTC,
+      startUTC,
 
-      endDate,
-      startDate,
+      endUTC,
+      startUTC,
 
-      endDate,
-      startDate,
+      endUTC,
+      startUTC,
       excludeReservationId || null,
       excludeReservationId || null,
 
@@ -853,33 +870,6 @@ app.post("/reservations", requireAuth, async (req, res) => {
 
     res.status(201).json({message: "Reservation created successfully"});
 
-    // old code inserted reservation then immediately did a second db query for the ID that was just created
-    // changed reservationImpl.js' addReservation method to return result.insertId which is SQL's representation of the new ID
-    // before this change, if two users booked at the same moment, the old select would return the other user's ID
-
-/*
-    await reservation.addReservation();
-
-    console.log("Reservation added successfully");
-    
-
-    const [inserted] = await db.query(
-      `SELECT id FROM reservations
-       WHERE user_id = ? AND item_id = ?
-       ORDER BY id DESC LIMIT 1`,
-      [req.session.user.id, req.body.item_id]
-    );
-
-    if (inserted.length > 0) {
-      notifyStaffOfNewReservation(inserted[0].id).catch(err =>
-        console.error('[Notifications] Staff alert failed:', err.message)
-      );
-    }
-
-    res.status(201).json({ 
-        message: "Reservation created successfully",
-    });
-*/
 
   } catch (err) {
     console.error(err);
