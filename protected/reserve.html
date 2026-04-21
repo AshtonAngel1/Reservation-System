@@ -54,13 +54,25 @@
       const endDate = document.getElementById("endDate").value;
 
       // adjust dates to ISO format for API Routes in the database
-      const start = startDate ? new Date(startDate).toISOString() : "";
-      const end = endDate ? new Date(endDate).toISOString() : "";
+      const start = startDate;
+      const end = endDate;
 
       const response = await fetch(`/inventory/available?type=${type}&start=${start || ""}&end=${end || ""}`);
       const items = await response.json();
 
       itemSelect.innerHTML = "";
+
+      if (!response.ok) {
+        console.error(data.error);
+
+        itemSelect.innerHTML = `<option value="">${data.error || "Error loading items"}</option>`;
+        return;
+      }
+
+      // if (!Array.isArray(data)) {
+      //   itemSelect.innerHTML = `<option value="">Invalid response</option>`;
+      //   return;
+      // }
 
       if (items.length === 0) {
         itemSelect.innerHTML = `<option value="">No items available</option>`;

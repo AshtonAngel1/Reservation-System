@@ -21,13 +21,36 @@ class reservationUtils {
 
 
     static async checkForConflicts(reservation) {
+        const startUTC = new Date(reservation.start_date);
+        const endUTC = new Date(reservation.end_date);
+
+        if (isNaN(startUTC) || isNaN(endUTC)) {
+            throw new Error("Invalid date format");
+        }
+
+        const startSQL = toMySQLDateTime(startUTC);
+        const endSQL = toMySQLDateTime(endUTC);
+
+        // console.log("Checking overlap:");
+        // console.log("Start:", startSQL);
+        // console.log("End:", endSQL);
+
         const [conflicts] = await db.query(
-            "SELECT * FROM reservations WHERE item_id = ? AND id != ? AND start_date < ? AND end_date > ? AND status = 'active'",
-            [reservation.item_id, reservation.id, reservation.start_date, reservation.end_date]
+            `SELECT id, start_date, end_date
+            FROM reservations
+            WHERE item_id = ?
+            AND status = 'active'
+            AND (? < end_date AND ? > start_date)
+            LIMIT 1`,
+            [reservation.item_id, startSQL, endSQL]
         );
 
         if (conflicts.length > 0) {
             throw new Error("This Item is already reserved during that time");
+        }
+
+        function toMySQLDateTime(date) {
+            return date.toISOString().slice(0, 19).replace("T", " ");
         }
     }
 
@@ -69,23 +92,36 @@ class reservationUtils {
     static async checkAvailabilityWindow(reservation) {
         const itemId = reservation.item_id;
         
-        const start = new Date(reservation.start_date);
-        const end = new Date(reservation.end_date);
+        const startUTC = new Date(reservation.start_date);
+        const endUTC = new Date(reservation.end_date);
 
-        if (start.toDateString() != end.toDateString()) {
+        // Convert to local time for availability rule checking
+        const timezone = "America/chicago";
+
+        const startLocal = new Date(startUTC.toLocaleString("en-US", { timeZone: timezone }));
+        const endLocal = new Date(endUTC.toLocaleString("en-US", { timeZone: timezone }));
+
+        const sameDay =
+            startLocal.getFullYear() === endLocal.getFullYear() &&
+            startLocal.getMonth() === endLocal.getMonth() &&
+            startLocal.getDate() === endLocal.getDate();
+
+        if (!sameDay) {
             throw new Error("Reservations must be within a single day.");
         }
         
         // MySQL DAYOFWEEK: Sunday = 1, JS getDay(): Sunday = 0
-        const dayOfWeek = start.getDay(); // 0–6
+        const dayOfWeek = startLocal.getDay(); // 0–6
 
         function toTimeString(date) {
             return date.toTimeString().slice(0, 8);
         }
 
-        const startTime = toTimeString(start);
-        const endTime = toTimeString(end);
+        const startTime = toTimeString(startLocal);
+        const endTime = toTimeString(endLocal);
 
+        const startDateOnly = startLocal.toISOString().slice(0, 10);
+        const endDateOnly = endLocal.toISOString().slice(0, 10);
 
         // Check matching availability rule (when the item is available)
         const [rules] = await db.query(`
@@ -96,7 +132,7 @@ class reservationUtils {
             AND end_time >= ?
             AND (valid_from IS NULL OR valid_from <= DATE(?))
             AND (valid_until IS NULL OR valid_until >= DATE(?))
-        `, [itemId, dayOfWeek, startTime, endTime, start, end]);
+        `, [itemId, dayOfWeek, startTime, endTime, startDateOnly, endDateOnly]);
 
 
         // Check  blocking exceptions
@@ -108,7 +144,7 @@ class reservationUtils {
             AND start_datetime < ?
             AND end_datetime > ?
             LIMIT 1
-        `, [itemId, end, start]);
+        `, [itemId, endUTC, startUTC]);
 
         if (blocked.length > 0) {
             throw new Error("Reservation falls within an unavailable time window.");
@@ -123,10 +159,10 @@ class reservationUtils {
             AND start_datetime < ?
             AND end_datetime > ?
             LIMIT 1
-        `, [itemId, end, start]);
+        `, [itemId, endUTC, startUTC]);
 
         if (rules.length === 0 && overrides.length === 0) {
-            throw new Error("Reseration outside availability window.")
+            throw new Error("Reservation outside availability window.");
         }
     }
 
