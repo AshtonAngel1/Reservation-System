@@ -65,7 +65,14 @@
       const table = document.getElementById("reservationTable");
       table.innerHTML = "";
 
-      reservations.forEach(r => {
+      const now = new Date();
+
+      const filtered = reservations.filter(r => {
+        const isPast = new Date(r.end_date) <= now;
+        return currentTab === "past" ? isPast : !isPast;
+      });
+
+      filtered.forEach(r => {
         const row = document.createElement("tr");
         const start = new Date(r.start_date).toLocaleString();
         const end = new Date(r.end_date).toLocaleString();
