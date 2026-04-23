@@ -7,9 +7,18 @@
 <body>
   <h2>My Reservations</h2>
 
+  <div id="tabs">
+    <button id="upcomingTab" class="tab active">Upcoming</button>
+    <button id="pastTab" class="tab">Past</button>
+  </div>
+
+  <button onclick="exportAll()">Export All to Calendar</button>
+  <button onclick="exportSelected()">Export Selected</button>
+
   <table border="1">
     <thead>
       <tr>
+        <th>Select</th>
         <th>ID</th>
         <th>Item Name</th>
         <th>Item Type</th>
@@ -22,7 +31,28 @@
     <tbody id="reservationTable"></tbody>
   </table>
 
+  <style>
+    #tabs {
+      margin-bottom: 20px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #f0f0f0;
+      border: none;
+      margin-right: 5px;
+    }
+
+    .tab.active {
+      background-color: #007BFF;
+      color: white;
+    }
+  </style>
+
   <script>
+    let currentTab = "upcoming";
+
     async function loadReservations() {
       const response = await fetch("/my-reservations");
 
@@ -51,7 +81,12 @@
           `;
         } 
 
+        const isPast = new Date(r.end_date) <= now;
+
         row.innerHTML = `
+          <td>
+            <input type="checkbox" class="res-checkbox" value="${r.id}" ${isPast ? "disabled" : ""}>
+          </td>
           <td>${r.id}</td>
           <td>${r.item_name}</td>
           <td>${r.item_type}</td>
@@ -75,6 +110,74 @@
       await fetch("/reservations/" + id, { method: "DELETE" });
       loadReservations();
     }
+
+    async function downloadICS(reservations) {
+      const response = await fetch("/reservations/export", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ reservations })
+      });
+
+      if (!response.ok) {
+        alert("Failed to export calendar");
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "reservations.ics";
+      document.body.appendChild(a);
+      a.click();
+
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    }
+
+    function exportAll() {
+      const checkboxes = document.querySelectorAll(".res-checkbox");
+      const allIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      downloadICS(allIds);
+    }
+
+    function exportSelected() {
+      const checkboxes = document.querySelectorAll(".res-checkbox:checked");
+      const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+      if (selectedIds.length === 0) {
+        alert("Please select at least one reservation to export.");
+        return;
+      }
+
+      downloadICS(selectedIds);
+    }
+
+    function setActiveTab() {
+      document.getElementById("upcomingTab").classList.remove("active");
+      document.getElementById("pastTab").classList.remove("active");
+
+      if (currentTab === "upcoming") {
+        document.getElementById("upcomingTab").classList.add("active");
+      } else {
+        document.getElementById("pastTab").classList.add("active");
+      }
+    }
+
+    document.getElementById("upcomingTab").addEventListener("click", () => {
+      currentTab = "upcoming";
+      setActiveTab();
+      loadReservations();
+    });
+
+    document.getElementById("pastTab").addEventListener("click", () => {
+      currentTab = "past";
+      setActiveTab();
+      loadReservations();
+    });
 
     loadReservations();
   </script>
