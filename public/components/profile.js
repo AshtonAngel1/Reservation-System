@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("profilePicture") ||
     document.getElementById("profile-picture");
 
-  function renderReservations(list, container) {
+  function renderReservations(list, container, showPastRating = false) {
     container.innerHTML = "";
 
     if (!list.length) {
@@ -30,9 +30,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     list.forEach((r) => {
       const li = document.createElement("li");
-      li.textContent = `${r.item_name} (${r.item_type}) ${new Date(
+      let line = `${r.item_name} (${r.item_type}) ${new Date(
         r.start_date
       ).toLocaleString()} → ${new Date(r.end_date).toLocaleString()}`;
+
+      if (showPastRating) {
+        if (r.my_rating !== null && r.my_rating !== undefined) {
+          line += ` | Your rating: ${r.my_rating}/5`;
+          if (r.my_rating_comment) {
+            line += ` (${r.my_rating_comment})`;
+          }
+        } else if (r.status === "active") {
+          line += " | Your rating: Not rated yet";
+        }
+      }
+
+      li.textContent = line;
       container.appendChild(li);
     });
   }
@@ -161,7 +174,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       profilePic.src = "/components/profile-pic.png";
     }
 
-    renderReservations(past, pastList);
+    renderReservations(past, pastList, true);
     renderReservations(today, todayList);
     renderReservations(future, futureList);
 
