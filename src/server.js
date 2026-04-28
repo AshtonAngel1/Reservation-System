@@ -554,8 +554,15 @@ app.get("/api/profile/reservations", requireAuth, async (req, res) => {
         i.type AS item_type,
         r.start_date,
         r.end_date
+        r.end_date,
+        r.status,
+        rv.rating AS my_rating,
+        rv.comment AS my_rating_comment
       FROM reservations r
       JOIN items i ON r.item_id = i.id
+      LEFT JOIN reviews rv
+        ON rv.reservation_id = r.id
+       AND rv.reviewer_user_id = r.user_id
       WHERE r.user_id = ?
       ORDER BY r.start_date ASC
     `, [req.session.user.id]);
@@ -564,6 +571,9 @@ app.get("/api/profile/reservations", requireAuth, async (req, res) => {
 
   } catch (err) {
     console.error(err);
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Reviews table is not available yet.' });
+    }
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -724,6 +734,7 @@ app.post('/api/reviews', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // All Reservations can take out where if want past aswell
 app.get("/my-reservations", requireAuth, async (req, res) => {
@@ -960,6 +971,68 @@ app.get("/admin/analytics", requireAdmin, async (req, res) => {
       GROUP BY cancel_category
     `);
 
+        let allTimeAverageRating = null;
+    let monthlyAverageRating = null;
+    let highestScoringReservationThisMonth = null;
+    let lowestScoringReservationThisMonth = null;
+
+    try {
+      const [allTimeRatingResult] = await db.query(`
+        SELECT ROUND(AVG(rv.rating), 2) AS avg_rating
+        FROM reviews rv
+      `);
+
+      const [monthlyRatingResult] = await db.query(`
+        SELECT ROUND(AVG(rv.rating), 2) AS avg_rating
+        FROM reviews rv
+        WHERE YEAR(rv.created_at) = YEAR(UTC_TIMESTAMP())
+          AND MONTH(rv.created_at) = MONTH(UTC_TIMESTAMP())
+      `);
+
+      const [highestMonthlyReservation] = await db.query(`
+        SELECT
+          rv.reservation_id,
+          ROUND(AVG(rv.rating), 2) AS average_rating,
+          i.name AS item_name,
+          u.email AS student_email
+        FROM reviews rv
+        JOIN reservations r ON r.id = rv.reservation_id
+        JOIN items i ON i.id = r.item_id
+        JOIN users u ON u.id = r.user_id
+        WHERE YEAR(rv.created_at) = YEAR(UTC_TIMESTAMP())
+          AND MONTH(rv.created_at) = MONTH(UTC_TIMESTAMP())
+        GROUP BY rv.reservation_id, i.name, u.email
+        ORDER BY average_rating DESC, rv.reservation_id ASC
+        LIMIT 1
+      `);
+
+      const [lowestMonthlyReservation] = await db.query(`
+        SELECT
+          rv.reservation_id,
+          ROUND(AVG(rv.rating), 2) AS average_rating,
+          i.name AS item_name,
+          u.email AS student_email
+        FROM reviews rv
+        JOIN reservations r ON r.id = rv.reservation_id
+        JOIN items i ON i.id = r.item_id
+        JOIN users u ON u.id = r.user_id
+        WHERE YEAR(rv.created_at) = YEAR(UTC_TIMESTAMP())
+          AND MONTH(rv.created_at) = MONTH(UTC_TIMESTAMP())
+        GROUP BY rv.reservation_id, i.name, u.email
+        ORDER BY average_rating ASC, rv.reservation_id ASC
+        LIMIT 1
+      `);
+
+      allTimeAverageRating = allTimeRatingResult[0]?.avg_rating;
+      monthlyAverageRating = monthlyRatingResult[0]?.avg_rating;
+      highestScoringReservationThisMonth = highestMonthlyReservation[0] || null;
+      lowestScoringReservationThisMonth = lowestMonthlyReservation[0] || null;
+    } catch (reviewErr) {
+      if (reviewErr.code !== 'ER_NO_SUCH_TABLE') {
+        throw reviewErr;
+      }
+    }
+
     res.json({
       all_time_registered_users: registeredUsersResult[0].count,
       all_time_reservations: allReservationsResult[0].count,
@@ -970,7 +1043,11 @@ app.get("/admin/analytics", requireAdmin, async (req, res) => {
       top_three_users_this_month: topUsers,
       total_cancellations: totalCancellationsResult[0].count,
       cancellations_this_month: monthlyCancellationsResult[0].count,
-      cancellations_this_month_by_category: cancellationsByCategory
+      cancellations_this_month_by_category: cancellationsByCategory,
+      all_time_average_rating: allTimeAverageRating,
+      monthly_average_rating: monthlyAverageRating,
+      highest_scoring_reservation_this_month: highestScoringReservationThisMonth,
+      lowest_scoring_reservation_this_month: lowestScoringReservationThisMonth
     });
 
   } catch (err) {
