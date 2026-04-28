@@ -19,6 +19,9 @@ async function loadAnalytics() {
   const userList = (data.top_three_users_this_month || []).map(i => `<li>${i.email} (${i.total})</li>`).join('') || '<li>None</li>';
   const cancelCategory = (data.cancellations_this_month_by_category || []).map(i => `<li>${i.category}: ${i.total}</li>`).join('') || '<li>None</li>';
 
+  const highest = data.highest_scoring_reservation_this_month;
+  const lowest = data.lowest_scoring_reservation_this_month;
+  
   el.innerHTML = `
     <h2>Analytics</h2>
     <p><strong>All Time Registered Users:</strong> ${data.all_time_registered_users || 0}</p>
@@ -27,6 +30,10 @@ async function loadAnalytics() {
     <p><strong>Unique Users This Month:</strong> ${data.unique_users_this_month || 0}</p>
     <p><strong>Total Cancellations:</strong> ${data.total_cancellations || 0}</p>
     <p><strong>Cancellations This Month:</strong> ${data.cancellations_this_month || 0}</p>
+    <p><strong>All Time Average Rating:</strong> ${data.all_time_average_rating ?? 'N/A'}</p>
+    <p><strong>Monthly Average Rating:</strong> ${data.monthly_average_rating ?? 'N/A'}</p>
+    <p><strong>Highest Scoring Reservation (Month):</strong> ${highest ? `#${highest.reservation_id} - ${highest.item_name} (${highest.average_rating}/5)` : 'N/A'}</p>
+    <p><strong>Lowest Scoring Reservation (Month):</strong> ${lowest ? `#${lowest.reservation_id} - ${lowest.item_name} (${lowest.average_rating}/5)` : 'N/A'}</p>
     <h3>Top 3 Requested Items (Month)</h3><ul>${itemList}</ul>
     <h3>Top 3 Staff (Month)</h3><ul>${staffList}</ul>
     <h3>Top 3 Users (Month)</h3><ul>${userList}</ul>
