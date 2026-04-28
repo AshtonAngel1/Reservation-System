@@ -11,10 +11,19 @@ router.post("/reservations/export", async (req, res) => {
       return res.status(400).json({ error: "No reservation IDs provided" });
     }
 
-    const reservations = await db.query(
-        "SELECT * FROM reservations WHERE id IN (?) AND user_id = ? AND end_date >= NOW()",
-        [reservationIds, req.session.user.id]
+    //console.log("Incoming IDs:", reservationIds);
+
+    const placeholders = reservationIds.map(() => "?").join(",");
+
+    const [reservations] = await db.query(
+      `SELECT * FROM reservations 
+       WHERE id IN (${placeholders}) 
+       AND user_id = ? 
+       AND end_date >= NOW()`,
+      [...reservationIds, req.session.user.id]
     );
+
+    //console.log("DB Results:", reservations);
 
     // Convert reservations into ICS format
     const events = reservations.map(r => {

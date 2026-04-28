@@ -118,13 +118,13 @@
       loadReservations();
     }
 
-    async function downloadICS(reservations) {
+    async function downloadICS(reservationIds) {
       const response = await fetch("/reservations/export", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ reservations })
+        body: JSON.stringify({ reservationIds })
       });
 
       if (!response.ok) {
