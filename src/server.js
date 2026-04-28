@@ -553,7 +553,6 @@ app.get("/api/profile/reservations", requireAuth, async (req, res) => {
         i.name AS item_name,
         i.type AS item_type,
         r.start_date,
-        r.end_date
         r.end_date,
         r.status,
         rv.rating AS my_rating,
