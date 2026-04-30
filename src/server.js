@@ -592,7 +592,7 @@ async function getReviewTasksForUser(userId) {
     LEFT JOIN people p ON p.item_id = i.id
     LEFT JOIN users tutor ON tutor.id = p.user_id
     LEFT JOIN users student ON student.id = r.user_id
-    WHERE r.end_date < UTC_TIMESTAMP()
+    WHERE r.end_date <= UTC_TIMESTAMP()
       AND r.status = 'active'
       AND (
         r.user_id = ?
