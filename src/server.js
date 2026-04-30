@@ -543,9 +543,15 @@ app.get("/api/profile/reservations", requireAuth, async (req, res) => {
         i.name AS item_name,
         i.type AS item_type,
         r.start_date,
-        r.end_date
+        r.end_date,
+        r.status,
+        rv.rating AS my_rating,
+        rv.comment AS my_rating_comment
       FROM reservations r
       JOIN items i ON r.item_id = i.id
+      LEFT JOIN reviews rv
+        ON rv.reservation_id = r.id
+       AND rv.reviewer_user_id = r.user_id
       WHERE r.user_id = ?
       ORDER BY r.start_date ASC
     `, [req.session.user.id]);
@@ -554,9 +560,170 @@ app.get("/api/profile/reservations", requireAuth, async (req, res) => {
 
   } catch (err) {
     console.error(err);
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Reviews table is not available yet.' });
+    }
     res.status(500).json({ error: "Server error" });
   }
 });
+
+// Get pending two-way review tasks for current user
+async function getReviewTasksForUser(userId) {
+  const [rows] = await db.query(
+    `SELECT
+      r.id AS reservation_id,
+      r.user_id AS student_user_id,
+      i.name AS item_name,
+      p.user_id AS tutor_user_id,
+      tutor.email AS tutor_email,
+      student.email AS student_email
+    FROM reservations r
+    JOIN items i ON i.id = r.item_id
+    LEFT JOIN people p ON p.item_id = i.id
+    LEFT JOIN users tutor ON tutor.id = p.user_id
+    LEFT JOIN users student ON student.id = r.user_id
+    WHERE r.end_date < UTC_TIMESTAMP()
+      AND r.status = 'active'
+      AND (
+        r.user_id = ?
+        OR p.user_id = ?
+      )
+      AND (
+        (r.user_id = ? AND p.user_id IS NOT NULL)
+        OR p.user_id = ?
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM reviews rv
+        WHERE rv.reservation_id = r.id
+          AND rv.reviewer_user_id = ?
+      )`,
+    [userId, userId, userId, userId, userId]
+  );
+
+  return rows
+    .map((row) => {
+      if (row.student_user_id === userId && row.tutor_user_id) {
+        return {
+          reservation_id: row.reservation_id,
+          review_target_user_id: row.tutor_user_id,
+          review_target_email: row.tutor_email,
+          direction_label: 'Review your tutor',
+          item_name: row.item_name,
+        };
+      }
+
+      if (row.tutor_user_id === userId) {
+        return {
+          reservation_id: row.reservation_id,
+          review_target_user_id: row.student_user_id,
+          review_target_email: row.student_email,
+          direction_label: 'Review your student',
+          item_name: row.item_name,
+        };
+      }
+
+      return null;
+    })
+    .filter((task) => task);
+}
+
+// Get reviews received by the current user
+app.get('/api/reviews/received', requireAuth, async (req, res) => {
+  try {
+    const [received] = await db.query(
+      `SELECT
+        rv.id,
+        rv.reservation_id,
+        rv.reviewer_user_id,
+        rv.review_target_user_id,
+        rv.rating,
+        rv.comment,
+        rv.created_at,
+        reviewer.email AS reviewer_email
+      FROM reviews rv
+      JOIN users reviewer ON reviewer.id = rv.reviewer_user_id
+      WHERE rv.review_target_user_id = ?
+      ORDER BY rv.created_at DESC`,
+      [req.session.user.id]
+    );
+
+    res.json(received);
+  } catch (err) {
+    console.error(err);
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Reviews table is not available yet.' });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/reviews/pending', requireAuth, async (req, res) => {
+  try {
+    const tasks = await getReviewTasksForUser(req.session.user.id);
+    res.json(tasks);
+  } catch (err) {
+    console.error(err);
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Reviews table is not available yet.' });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Create a review
+app.post('/api/reviews', requireAuth, async (req, res) => {
+  try {
+    const { reservation_id, review_target_user_id, rating, comment } = req.body;
+
+    if (!reservation_id || !review_target_user_id) {
+      return res.status(400).json({ error: 'reservation_id and review_target_user_id are required' });
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be an integer between 1 and 5' });
+    }
+
+    const allowedTasks = await getReviewTasksForUser(req.session.user.id);
+    const isAllowed = allowedTasks.some(
+      (task) => task.reservation_id === Number(reservation_id) && task.review_target_user_id === Number(review_target_user_id)
+    );
+
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'You are not allowed to review this user for this reservation' });
+    }
+
+    await db.query(
+      `INSERT INTO reviews (
+        reservation_id,
+        reviewer_user_id,
+        review_target_user_id,
+        rating,
+        comment,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+      [
+        Number(reservation_id),
+        req.session.user.id,
+        Number(review_target_user_id),
+        rating,
+        comment || ''
+      ]
+    );
+
+    res.status(201).json({ message: 'Review created' });
+  } catch (err) {
+    console.error(err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'You already submitted a review for this reservation' });
+    }
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Reviews table is not available yet.' });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 // All Reservations can take out where if want past aswell
 app.get("/my-reservations", requireAuth, async (req, res) => {
@@ -793,6 +960,68 @@ app.get("/admin/analytics", requireAdmin, async (req, res) => {
       GROUP BY cancel_category
     `);
 
+        let allTimeAverageRating = null;
+    let monthlyAverageRating = null;
+    let highestScoringReservationThisMonth = null;
+    let lowestScoringReservationThisMonth = null;
+
+    try {
+      const [allTimeRatingResult] = await db.query(`
+        SELECT ROUND(AVG(rv.rating), 2) AS avg_rating
+        FROM reviews rv
+      `);
+
+      const [monthlyRatingResult] = await db.query(`
+        SELECT ROUND(AVG(rv.rating), 2) AS avg_rating
+        FROM reviews rv
+        WHERE YEAR(rv.created_at) = YEAR(UTC_TIMESTAMP())
+          AND MONTH(rv.created_at) = MONTH(UTC_TIMESTAMP())
+      `);
+
+      const [highestMonthlyReservation] = await db.query(`
+        SELECT
+          rv.reservation_id,
+          ROUND(AVG(rv.rating), 2) AS average_rating,
+          i.name AS item_name,
+          u.email AS student_email
+        FROM reviews rv
+        JOIN reservations r ON r.id = rv.reservation_id
+        JOIN items i ON i.id = r.item_id
+        JOIN users u ON u.id = r.user_id
+        WHERE YEAR(rv.created_at) = YEAR(UTC_TIMESTAMP())
+          AND MONTH(rv.created_at) = MONTH(UTC_TIMESTAMP())
+        GROUP BY rv.reservation_id, i.name, u.email
+        ORDER BY average_rating DESC, rv.reservation_id ASC
+        LIMIT 1
+      `);
+
+      const [lowestMonthlyReservation] = await db.query(`
+        SELECT
+          rv.reservation_id,
+          ROUND(AVG(rv.rating), 2) AS average_rating,
+          i.name AS item_name,
+          u.email AS student_email
+        FROM reviews rv
+        JOIN reservations r ON r.id = rv.reservation_id
+        JOIN items i ON i.id = r.item_id
+        JOIN users u ON u.id = r.user_id
+        WHERE YEAR(rv.created_at) = YEAR(UTC_TIMESTAMP())
+          AND MONTH(rv.created_at) = MONTH(UTC_TIMESTAMP())
+        GROUP BY rv.reservation_id, i.name, u.email
+        ORDER BY average_rating ASC, rv.reservation_id ASC
+        LIMIT 1
+      `);
+
+      allTimeAverageRating = allTimeRatingResult[0]?.avg_rating;
+      monthlyAverageRating = monthlyRatingResult[0]?.avg_rating;
+      highestScoringReservationThisMonth = highestMonthlyReservation[0] || null;
+      lowestScoringReservationThisMonth = lowestMonthlyReservation[0] || null;
+    } catch (reviewErr) {
+      if (reviewErr.code !== 'ER_NO_SUCH_TABLE') {
+        throw reviewErr;
+      }
+    }
+
     res.json({
       all_time_registered_users: registeredUsersResult[0].count,
       all_time_reservations: allReservationsResult[0].count,
@@ -803,7 +1032,11 @@ app.get("/admin/analytics", requireAdmin, async (req, res) => {
       top_three_users_this_month: topUsers,
       total_cancellations: totalCancellationsResult[0].count,
       cancellations_this_month: monthlyCancellationsResult[0].count,
-      cancellations_this_month_by_category: cancellationsByCategory
+      cancellations_this_month_by_category: cancellationsByCategory,
+      all_time_average_rating: allTimeAverageRating,
+      monthly_average_rating: monthlyAverageRating,
+      highest_scoring_reservation_this_month: highestScoringReservationThisMonth,
+      lowest_scoring_reservation_this_month: lowestScoringReservationThisMonth
     });
 
   } catch (err) {
