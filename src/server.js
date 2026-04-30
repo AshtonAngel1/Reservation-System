@@ -65,7 +65,7 @@ function preventLoggedInAccess(req, res, next) {
 
 //Ics Routes (maybe change)
 const icsRoutes = require("./ics/icsRoutes");
-app.use("/", icsRoutes);
+app.use("/", requireAuth, icsRoutes);
 // --------- API ROUTES ---------
 
 app.get("/session", (req, res) => {

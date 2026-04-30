@@ -25,7 +25,8 @@ router.post("/reservations/export", async (req, res) => {
       WHERE r.id IN (${placeholders})
         AND r.user_id = ?
         AND r.end_date >= NOW()
-        AND i.active = TRUE`,
+        AND i.active = TRUE
+        AND r.status = 'active'`,
       [...reservationIds, req.session.user.id]
     );
 
