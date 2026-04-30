@@ -5,11 +5,22 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h2>My Reservations</h2>
+  <h2 class="title">My Reservations</h2>
+
+  <div id="tabs">
+    <button id="upcomingTab" class="tab active">Upcoming</button>
+    <button id="pastTab" class="tab">Past</button>
+  </div>
+
+  <div id="exportBtns">
+    <button onclick="exportAll()">Export All to Calendar</button>
+    <button onclick="exportSelected()">Export Selected</button>
+  </div>
 
   <table border="1">
     <thead>
       <tr>
+        <th>Select</th>
         <th>ID</th>
         <th>Item Name</th>
         <th>Item Type</th>
@@ -22,7 +33,42 @@
     <tbody id="reservationTable"></tbody>
   </table>
 
+  <style>
+    #tabs {
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #f0f0f0;
+      border: none;
+      margin-right: 5px;
+    }
+
+    .tab.active {
+      background-color: #007BFF;
+      color: white;
+    }
+
+    #exportBtns {
+      display: flex;
+      justify-content: center;  
+      gap: 10px;               
+      margin: 20px 0;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 40px;
+    }
+  </style>
+
   <script>
+    let currentTab = "upcoming";
+
     async function loadReservations() {
       const response = await fetch("/my-reservations");
 
@@ -35,7 +81,14 @@
       const table = document.getElementById("reservationTable");
       table.innerHTML = "";
 
-      reservations.forEach(r => {
+      const now = new Date();
+
+      const filtered = reservations.filter(r => {
+        const isPast = new Date(r.end_date) <= now;
+        return currentTab === "past" ? isPast : !isPast;
+      });
+
+      filtered.forEach(r => {
         const row = document.createElement("tr");
         const start = new Date(r.start_date).toLocaleString();
         const end = new Date(r.end_date).toLocaleString();
@@ -51,7 +104,12 @@
           `;
         } 
 
+        const isPast = new Date(r.end_date) <= now;
+
         row.innerHTML = `
+          <td>
+            <input type="checkbox" class="res-checkbox" value="${r.id}" ${isPast ? "disabled" : ""}>
+          </td>
           <td>${r.id}</td>
           <td>${r.item_name}</td>
           <td>${r.item_type}</td>
@@ -75,6 +133,74 @@
       await fetch("/reservations/" + id, { method: "DELETE" });
       loadReservations();
     }
+
+    async function downloadICS(reservationIds) {
+      const response = await fetch("/reservations/export", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ reservationIds })
+      });
+
+      if (!response.ok) {
+        alert("No upcoming reservations to export");
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "reservations.ics";
+      document.body.appendChild(a);
+      a.click();
+
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    }
+
+    function exportAll() {
+      const checkboxes = document.querySelectorAll(".res-checkbox");
+      const allIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      downloadICS(allIds);
+    }
+
+    function exportSelected() {
+      const checkboxes = document.querySelectorAll(".res-checkbox:checked");
+      const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+      if (selectedIds.length === 0) {
+        alert("Please select at least one reservation to export.");
+        return;
+      }
+
+      downloadICS(selectedIds);
+    }
+
+    function setActiveTab() {
+      document.getElementById("upcomingTab").classList.remove("active");
+      document.getElementById("pastTab").classList.remove("active");
+
+      if (currentTab === "upcoming") {
+        document.getElementById("upcomingTab").classList.add("active");
+      } else {
+        document.getElementById("pastTab").classList.add("active");
+      }
+    }
+
+    document.getElementById("upcomingTab").addEventListener("click", () => {
+      currentTab = "upcoming";
+      setActiveTab();
+      loadReservations();
+    });
+
+    document.getElementById("pastTab").addEventListener("click", () => {
+      currentTab = "past";
+      setActiveTab();
+      loadReservations();
+    });
 
     loadReservations();
   </script>

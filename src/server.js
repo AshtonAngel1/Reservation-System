@@ -63,19 +63,9 @@ function preventLoggedInAccess(req, res, next) {
   next();
 }
 
-async function tableHasColumn(tableName, columnName) {
-  const [rows] = await db.query(
-    `SELECT 1
-     FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE()
-       AND TABLE_NAME = ?
-       AND COLUMN_NAME = ?
-     LIMIT 1`,
-    [tableName, columnName]
-  );
-  return rows.length > 0;
-}
-
+//Ics Routes (maybe change)
+const icsRoutes = require("./ics/icsRoutes");
+app.use("/", requireAuth, icsRoutes);
 // --------- API ROUTES ---------
 
 app.get("/session", (req, res) => {
