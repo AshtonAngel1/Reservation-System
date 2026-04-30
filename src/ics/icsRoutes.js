@@ -16,14 +16,24 @@ router.post("/reservations/export", async (req, res) => {
     const placeholders = reservationIds.map(() => "?").join(",");
 
     const [reservations] = await db.query(
-      `SELECT * FROM reservations 
-       WHERE id IN (${placeholders}) 
-       AND user_id = ? 
-       AND end_date >= NOW()`,
+      `SELECT 
+        r.*,
+        i.name AS item_name,
+        i.type AS item_type
+      FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      WHERE r.id IN (${placeholders})
+        AND r.user_id = ?
+        AND r.end_date >= NOW()
+        AND i.active = TRUE`,
       [...reservationIds, req.session.user.id]
     );
 
     //console.log("DB Results:", reservations);
+
+    if (!reservations || reservations.length === 0) {
+      return res.status(400).json({ error: "No upcoming reservations to export" });
+    }
 
     // Convert reservations into ICS format
     const events = reservations.map(r => {
@@ -31,7 +41,7 @@ router.post("/reservations/export", async (req, res) => {
       const end = new Date(r.end_date);
 
       return {
-        title: `Reservation for Item ${r.item_id}`,
+        title: `Reservation for ${r.item_name} (${r.item_type})`,
         start: [
           start.getFullYear(),
           start.getMonth() + 1,
@@ -46,7 +56,7 @@ router.post("/reservations/export", async (req, res) => {
           end.getHours(),
           end.getMinutes()
         ],
-        description: `Reservation ID: ${r.id}`,
+        description: `Reservation ID: ${r.id}\n Type: (${r.item_type})`, 
         status: "CONFIRMED",
         busyStatus: "BUSY"
       };
