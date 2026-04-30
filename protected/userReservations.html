@@ -5,15 +5,17 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h2>My Reservations</h2>
+  <h2 class="title">My Reservations</h2>
 
   <div id="tabs">
     <button id="upcomingTab" class="tab active">Upcoming</button>
     <button id="pastTab" class="tab">Past</button>
   </div>
 
-  <button onclick="exportAll()">Export All to Calendar</button>
-  <button onclick="exportSelected()">Export Selected</button>
+  <div id="exportBtns">
+    <button onclick="exportAll()">Export All to Calendar</button>
+    <button onclick="exportSelected()">Export Selected</button>
+  </div>
 
   <table border="1">
     <thead>
@@ -34,6 +36,8 @@
   <style>
     #tabs {
       margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
     }
 
     .tab {
@@ -47,6 +51,18 @@
     .tab.active {
       background-color: #007BFF;
       color: white;
+    }
+
+    #exportBtns {
+      display: flex;
+      justify-content: center;  
+      gap: 10px;               
+      margin: 20px 0;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 40px;
     }
   </style>
 
