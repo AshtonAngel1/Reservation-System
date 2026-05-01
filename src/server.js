@@ -187,6 +187,11 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
   try {
     const { type, start, end, excludeReservationId } = req.query;
 
+    function datetimeLocalToUTC(datetimeLocal) {
+      const local = new Date(datetimeLocal);
+      return new Date(local.getTime() - local.getTimezoneOffset() * 60000);
+    }
+
     if (!type) {
       return res.status(400).json({ error: "Missing item type" });
     }
@@ -221,8 +226,15 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
     }
 
     // Convert to UTC for DB comparisons
-    const startUTC = new Date(startLocal.getTime() - startLocal.getTimezoneOffset() * 60000);
-    const endUTC = new Date(endLocal.getTime() - endLocal.getTimezoneOffset() * 60000);
+    const startUTC = datetimeLocalToUTC(start);
+    const endUTC = datetimeLocalToUTC(end);
+
+    function toMySQL(datetime) {
+      return datetime.toISOString().slice(0, 19).replace("T", " ");
+    }
+
+    const startUTCStr = toMySQL(startUTC);
+    const endUTCStr = toMySQL(endUTC);
 
     const dayOfWeek = startLocal.getDay(); // use LOCAL day for availability rules
 
@@ -238,7 +250,7 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
       SELECT i.id, i.name, i.type
       FROM items i
 
-      JOIN availability_rules ar
+      LEFT JOIN availability_rules ar
         ON ar.item_id = i.id
         AND ar.day_of_week = ?
         AND ar.start_time <= ?
@@ -267,7 +279,13 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
 
       WHERE i.type = ?
       AND i.active = TRUE
-      AND (ar.id IS NOT NULL OR override.id IS NOT NULL)
+      AND (
+        override.id IS NOT NULL
+        OR (
+          ar.id IS NOT NULL
+          AND override.id IS NULL
+        )
+      )
       AND block.id IS NULL
       AND r.id IS NULL
 
@@ -279,14 +297,14 @@ app.get("/inventory/available", async (req, res) => { //took out requestAuth
       startDateOnly,
       startDateOnly,
 
-      endUTC,
-      startUTC,
+      startUTCStr,
+      endUTCStr,
 
-      endUTC,
-      startUTC,
+      startUTCStr,
+      endUTCStr,
 
-      endUTC,
-      startUTC,
+      startUTCStr,
+      endUTCStr,
       excludeReservationId || null,
       excludeReservationId || null,
 

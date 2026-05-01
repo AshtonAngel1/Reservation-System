@@ -18,6 +18,17 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function datetimeLocalToUTCString(datetimeLocal) {
+  // Parse as local time
+  const localDate = new Date(datetimeLocal);
+
+  // Convert to UTC by removing timezone offset
+  const utcDate = new Date(localDate.getTime() - localDate.getTimezoneOffset() * 60000);
+
+  // Format for MySQL DATETIME
+  return utcDate.toISOString().slice(0, 19).replace("T", " ");
+}
+
 router.get('/', async (req, res) => {
   try {
     const { item_id, item_type, start_date, end_date } = req.query;
@@ -135,8 +146,8 @@ router.post("/exceptions", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "Invalid time range" });
     }
 
-    const startIso = reservationUtils.toMySQLDatetime(start_datetime);
-    const endIso = reservationUtils.toMySQLDatetime(end_datetime);
+    const startIso = datetimeLocalToUTCString(start_datetime);
+    const endIso = datetimeLocalToUTCString(end_datetime);
 
     await db.query(`
       INSERT INTO availability_exceptions
