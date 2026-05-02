@@ -26,7 +26,7 @@
         <th>Item Type</th>
         <th>Start</th>
         <th>End</th>
-        <th>Edit</th>
+        <th id="editHeader">Edit</th>
         <th>Cancel</th>
       </tr>
     </thead>
@@ -80,6 +80,8 @@
       const reservations = await response.json();
       const table = document.getElementById("reservationTable");
       table.innerHTML = "";
+      const editHeader = document.getElementById("editHeader");
+      editHeader.style.display = currentTab === "past" ? "none" : "";
 
       const now = new Date();
 
@@ -116,7 +118,7 @@
           <td>${start}</td>
           <td>${end}</td>
 
-          <td>${editButton}</td>
+          ${currentTab === "upcoming" ? `<td>${editButton}</td>` : ""}
 
           <td>
             <button onclick="deleteReservation(${r.id})">

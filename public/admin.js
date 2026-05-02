@@ -75,7 +75,6 @@ async function loadReservations() {
       <td>${r.user_email}</td>
       <td>${new Date(r.start_date).toLocaleString()}</td>
       <td>${new Date(r.end_date).toLocaleString()}</td>
-      <td><button data-id="${r.id}" class="cancel-res-btn">Soft Delete</button></td>
     `;
     pastTbody.appendChild(tr);
   });
