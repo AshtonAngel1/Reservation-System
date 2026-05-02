@@ -131,18 +131,25 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Inventory
+// Inventory (allow deactivated items)
 app.get("/inventory", requireAdmin, async (req, res) => {
   try {
     const [items] = await db.query(`
-      SELECT i.id, i.name, i.type,
-             r.capacity, r.location,
-             p.first_name, p.last_name, p.role,
+      SELECT i.id,
+             i.name,
+             i.type,
+             i.active,
+             r.capacity,
+             r.location,
+             p.first_name,
+             p.last_name,
+             p.role,
              rs.resource_type
       FROM items i
       LEFT JOIN rooms r ON i.id = r.item_id
       LEFT JOIN people p ON i.id = p.item_id
       LEFT JOIN resources rs ON i.id = rs.item_id
+      ORDER BY i.type, i.name
       WHERE i.active = TRUE
     `);
     
@@ -329,14 +336,42 @@ const availabilityRoutes = require('./reservation/availabilityRoutes');
 const reservationUtils = require('./utils/reservationUtils');
 app.use('/availability', requireAuth, availabilityRoutes)
 
+// Helpers for soft delete and restore of items and users
 
 async function softDeleteItem(id) {
+  await ensureNoFutureReservations(id);
+
   await db.query(
     `UPDATE items 
      SET active = FALSE, deleted_at = UTC_TIMESTAMP()
      WHERE id = ?`,
     [id]
   );
+}
+
+async function restoreItem(id) {
+  await db.query(
+    `UPDATE items
+     SET active = TRUE,
+         deleted_at = NULL
+     WHERE id = ?`,
+    [id]
+  );
+}
+
+async function ensureNoFutureReservations(itemId) {
+  const [rows] = await db.query(
+    `SELECT COUNT(*) AS count
+     FROM reservations
+     WHERE item_id = ?
+       AND end_date > UTC_TIMESTAMP()
+       AND (status IS NULL OR status != 'canceled')`,
+    [itemId]
+  );
+
+  if (rows[0].count > 0) {
+    throw new Error("Cannot deactivate item with upcoming reservations.");
+  }
 }
 
 // Rooms
@@ -474,6 +509,27 @@ app.delete("/people/:id", requireAdmin, async (req,res)=>{
     res.status(500).json({ message: err.message });
   }
 });
+
+// Delete and Restore routes
+// app.delete("/inventory/:id", requireAdmin, async (req, res) => {
+//   try {
+//     await softDeleteItem(req.params.id);
+//     res.json({ message: "Item deactivated" });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(400).json({ message: err.message });
+//   }
+// });
+
+// app.post("/inventory/:id/restore", requireAdmin, async (req, res) => {
+//   try {
+//     await restoreItem(req.params.id);
+//     res.json({ message: "Item restored" });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(400).json({ message: err.message });
+//   }
+// });
 
 //PROFILE API ROUTES
 

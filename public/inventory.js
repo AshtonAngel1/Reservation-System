@@ -44,6 +44,68 @@ function createDeleteButton(type, id) {
   return btn;
 }
 
+function createActionButton(item) {
+  const btn = document.createElement("button");
+
+  btn.textContent = item.active ? "Deactivate" : "Restore";
+
+  btn.addEventListener("click", async () => {
+    const method = item.active ? "DELETE" : "POST";
+    const url = item.active
+      ? `/inventory/${item.id}`
+      : `/inventory/${item.id}/restore`;
+
+    const res = await fetch(url, { method });
+    const result = await res.json();
+
+    if (!res.ok) {
+      alert(result.message || "Action failed");
+      return;
+    }
+
+    loadTables();
+  });
+
+  return btn;
+}
+
+function getColumnsForType(type) {
+  if (type === "room") {
+    return ["id", "name", "capacity", "location"];
+  }
+
+  if (type === "resource") {
+    return ["id", "name", "resource_type"];
+  }
+
+  if (type === "person") {
+    return ["id", "first_name", "last_name", "role"];
+  }
+
+  return [];
+}
+
+function renderTable(tableSelector, items, type) {
+  const tbody = document.querySelector(`${tableSelector} tbody`);
+  tbody.innerHTML = "";
+
+  const columns = getColumnsForType(type);
+
+  items.forEach(item => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = columns
+      .map(col => `<td>${item[col] || ""}</td>`)
+      .join("");
+
+    const tdAction = document.createElement("td");
+    tdAction.appendChild(createActionButton(item));
+    tr.appendChild(tdAction);
+
+    tbody.appendChild(tr);
+  });
+}
+
 function createRuleRow() {
   const div = document.createElement("div");
 
@@ -70,6 +132,31 @@ function createRuleRow() {
 }
 
 // --- LOAD TABLES ---
+async function loadDeactivatedTables(items) {
+  const inactiveItems = items.filter(i => i.active === 0);
+
+  const inactiveSection = document.getElementById("inactiveSection");
+  inactiveSection.style.display = inactiveItems.length ? "" : "none";
+
+  renderTable(
+    "#inactiveRoomsTable",
+    inactiveItems.filter(i => i.type === "room"),
+    "room"
+  );
+
+  renderTable(
+    "#inactiveResourcesTable",
+    inactiveItems.filter(i => i.type === "resource"),
+    "resource"
+  );
+
+  renderTable(
+    "#inactivePeopleTable",
+    inactiveItems.filter(i => i.type === "person"),
+    "person"
+  );
+}
+
 async function loadTables() {
   const data = await fetchInventory();
   const items = data.items;
@@ -145,11 +232,14 @@ async function loadTables() {
   });
 
   if (items.length > 0) {
-  availabilitySelect.value = items[0].id;
+    availabilitySelect.value = items[0].id;
 
-  // manually trigger load
-  availabilitySelect.dispatchEvent(new Event("change"));
-}
+    // manually trigger load
+    availabilitySelect.dispatchEvent(new Event("change"));
+  }
+
+  // Load deactivated items in separate tables
+  // loadDeactivatedTables(items);
 }
 
 // --- ADD NEW ITEMS ---
