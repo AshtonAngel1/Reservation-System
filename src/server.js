@@ -1426,6 +1426,34 @@ app.delete("/admin/reservations/:id", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── RANK ROUTE ───────────────────────────────────────────────────────────────
+// GET /api/rank — returns the logged-in user's rank based on total reservations
+// Tiers: Newcomer (0-9), Bronze (10-19), Silver (20-49), Gold (50-99), Diamond (100+)
+ 
+app.get("/api/rank", requireAuth, async (req, res) => {
+  try {
+    const [[{ total }]] = await db.query(
+      "SELECT COUNT(*) AS total FROM reservations WHERE user_id = ?",
+      [req.session.user.id]
+    );
+ 
+    let rank, next, needed;
+ 
+    if (total >= 100)     { rank = "Diamond"; next = null;      needed = 0; }
+    else if (total >= 50) { rank = "Gold";    next = "Diamond"; needed = 100 - total; }
+    else if (total >= 20) { rank = "Silver";  next = "Gold";    needed = 50  - total; }
+    else if (total >= 10) { rank = "Bronze";  next = "Silver";  needed = 20  - total; }
+    else                  { rank = "Newcomer"; next = "Bronze"; needed = 10  - total; }
+ 
+    res.json({ rank, total, next, needed });
+ 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+ 
+
 app.post("/logout", (req, res) => {
   req.session.destroy(err => {
     if (err) {
