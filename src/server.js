@@ -571,6 +571,7 @@ app.get("/api/profile/reservations", requireAuth, async (req, res) => {
         ON rv.reservation_id = r.id
        AND rv.reviewer_user_id = r.user_id
       WHERE r.user_id = ?
+        AND r.status = 'active'
       ORDER BY r.start_date ASC
     `, [req.session.user.id]);
 

@@ -156,10 +156,10 @@ class reservationUtils {
             FROM availability_exceptions
             WHERE item_id = ?
             AND is_available = TRUE
-            AND start_datetime < ?
-            AND end_datetime > ?
+            AND start_datetime <= ?
+            AND end_datetime >= ?
             LIMIT 1
-        `, [itemId, endUTC, startUTC]);
+        `, [itemId, startUTC, endUTC]);
 
         if (rules.length === 0 && overrides.length === 0) {
             throw new Error("Reservation outside availability window.");
