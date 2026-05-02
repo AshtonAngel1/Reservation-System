@@ -149,8 +149,8 @@ app.get("/inventory", requireAdmin, async (req, res) => {
       LEFT JOIN rooms r ON i.id = r.item_id
       LEFT JOIN people p ON i.id = p.item_id
       LEFT JOIN resources rs ON i.id = rs.item_id
-      ORDER BY i.type, i.name
       WHERE i.active = TRUE
+      ORDER BY i.type, i.name
     `);
     
 
